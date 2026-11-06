@@ -1,0 +1,18 @@
+{
+  "serverContent": {
+    "modelTurn": {
+      "parts": [
+        {
+          "inlineData": {
+            "mimeType": "audio/pcm;rate=24000",
+            "data": "EAATAPX/+P8iAP7/q/+P/5X/xv/Z/5b/ff+r/+n/CwDq/9v/v/9l/zT/zv9WADUABQBoAMwAVACZ/47/7/9nAJIAWAAnANn/"
+          }
+        }
+      ],
+      "role": "model"
+    },
+    "outputTranscription": {
+      "text": "Hello Xavi, hope "
+    }
+  }
+}

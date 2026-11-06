@@ -6,6 +6,7 @@
 
 #include <chan/core/attention.h>
 #include <chan/core/config.h>
+#include <chan/core/gemini_messages.h>
 #include <chan/platform/screens/shell.h>
 
 #include <string_view>
@@ -45,6 +46,13 @@ public:
 
     bool isQuiet() const;
 
+    // Session description for Gemini Live (model, voice, language, persona, tools).
+    GeminiSetup buildGeminiSetup() const;
+    // Tool dispatch for Gemini function calls; returns a JSON object string.
+    std::string handleToolCall(const ServerMsg::Call& call);
+    // Loudness of the reply being played (0..1), fed by the protocol, consumed by the LEDs.
+    void setOutputLevel(float level) { _voice_level = level; }
+
     Shell& shell() { return _shell; }
     Attention& attention() { return _attention; }
 
@@ -64,6 +72,7 @@ private:
     uint32_t _last_net_poll_ms = 0;
     bool _net_online = true;
     int _quiet_override = -1;  // -1 auto, 0 force off, 1 force on (debug)
+    float _voice_level = -1.0f;
 };
 
 }  // namespace chan::platform

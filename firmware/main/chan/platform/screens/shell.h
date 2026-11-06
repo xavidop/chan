@@ -32,6 +32,10 @@ public:
     // click LVGL may also report for the same touch.
     uint32_t last_gesture_ms() const { return _last_gesture_ms; }
 
+    // show(Settings) only records the request: NVS writes are not allowed from the LVGL
+    // task (its stack lives in PSRAM). ChanApp::tick() consumes it and reboots.
+    bool takeSettingsRequest() { bool r = _settings_requested; _settings_requested = false; return r; }
+
     // Overlay roots for later tasks to draw into (nullptr before init()).
     lv_obj_t* agents_root() const { return _agents; }
     lv_obj_t* sports_root() const { return _sports; }
@@ -47,6 +51,7 @@ private:
     lv_obj_t* _agents = nullptr;
     lv_obj_t* _sports = nullptr;
     uint32_t _last_gesture_ms = 0;
+    bool _settings_requested = false;
 };
 
 }  // namespace chan::platform

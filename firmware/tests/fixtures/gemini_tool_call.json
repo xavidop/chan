@@ -1,0 +1,11 @@
+{
+  "toolCall": {
+    "functionCalls": [
+      {
+        "name": "look",
+        "args": {},
+        "id": "call_16979818093071475944"
+      }
+    ]
+  }
+}

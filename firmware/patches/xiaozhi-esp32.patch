@@ -1,8 +1,15 @@
 diff --git a/main/application.cc b/main/application.cc
-index 31de205..84c98c4 100644
+index 31de205..71805a6 100644
 --- a/main/application.cc
 +++ b/main/application.cc
-@@ -298,10 +298,13 @@ void Application::HandleNetworkConnectedEvent() {
+@@ -1,4 +1,6 @@
+ #include "application.h"
++#include <chan/platform/chan_app.h>
++#include <chan/platform/gemini_protocol.h>
+ #include "assets.h"
+ #include "assets/lang_config.h"
+ #include "audio_codec.h"
+@@ -298,10 +300,15 @@ void Application::HandleNetworkConnectedEvent() {
              return;
          }
  
@@ -12,12 +19,14 @@ index 31de205..84c98c4 100644
              [](void* arg) {
                  Application* app = static_cast<Application*>(arg);
 -                app->ActivationTask();
++                // Loads the assets partition (wake-word models, theme); no download without a server.
++                app->CheckAssetsVersion();
 +                app->InitializeProtocol();
 +                xEventGroupSetBits(app->event_group_, MAIN_EVENT_ACTIVATION_DONE);
                  app->activation_task_handle_ = nullptr;
                  vTaskDelete(NULL);
              },
-@@ -336,7 +339,7 @@ void Application::HandleActivationDoneEvent() {
+@@ -336,7 +343,7 @@ void Application::HandleActivationDoneEvent() {
      SystemInfo::PrintHeapStats();
      SetDeviceState(kDeviceStateIdle);
  
@@ -26,7 +35,7 @@ index 31de205..84c98c4 100644
  
      // Protocol start may have already raised MAIN_EVENT_ERROR. Do not replace
      // that alert with the "ready" UI/sound — the main loop can process both
-@@ -344,7 +347,7 @@ void Application::HandleActivationDoneEvent() {
+@@ -344,7 +351,7 @@ void Application::HandleActivationDoneEvent() {
      const bool has_error = !last_error_message_.empty();
      if (!has_error) {
          auto display = Board::GetInstance().GetDisplay();
@@ -35,7 +44,7 @@ index 31de205..84c98c4 100644
          display->ShowNotification(message.c_str());
          display->SetChatMessage("system", "");
      }
-@@ -442,6 +445,7 @@ void Application::CheckAssetsVersion() {
+@@ -442,6 +449,7 @@ void Application::CheckAssetsVersion() {
  void Application::CheckNewVersion() {
      const int MAX_RETRY = 10;
      int retry_count = 0;
@@ -43,7 +52,7 @@ index 31de205..84c98c4 100644
      int retry_delay = 10;  // Initial retry delay in seconds
  
      auto& board = Board::GetInstance();
-@@ -499,15 +503,15 @@ void Application::CheckNewVersion() {
+@@ -499,15 +507,15 @@ void Application::CheckNewVersion() {
  
          // No new version, mark the current version as valid
          ota_->MarkCurrentVersionValid();
@@ -63,24 +72,40 @@ index 31de205..84c98c4 100644
          }
  
          // This will block the loop until the activation is done or timeout
-@@ -535,13 +539,11 @@ void Application::InitializeProtocol() {
+@@ -535,14 +543,14 @@ void Application::InitializeProtocol() {
  
      display->SetStatus(Lang::Strings::LOADING_PROTOCOL);
  
 -    if (ota_->HasMqttConfig()) {
-+    if (ota_ && ota_->HasMqttConfig()) {
-         protocol_ = std::make_unique<MqttProtocol>();
+-        protocol_ = std::make_unique<MqttProtocol>();
 -    } else if (ota_->HasWebsocketConfig()) {
 -        protocol_ = std::make_unique<WebsocketProtocol>();
-     } else {
+-    } else {
 -        ESP_LOGW(TAG, "No protocol specified in the OTA config, using MQTT");
 -        protocol_ = std::make_unique<MqttProtocol>();
-+        // Chan: WebSocket by default (replaced by the Gemini Live protocol later).
-+        protocol_ = std::make_unique<WebsocketProtocol>();
-     }
+-    }
++    // Chan: the device talks to Gemini Live directly.
++    auto gemini = std::make_unique<chan::platform::GeminiProtocol>();
++    gemini->on_tool_call = [](const chan::ServerMsg::Call& call) {
++        return chan::platform::ChanApp::get().handleToolCall(call);
++    };
++    gemini->on_output_level = [](float level) { chan::platform::ChanApp::get().setOutputLevel(level); };
++    protocol_ = std::move(gemini);
++    audio_service_.SetRawPcmWire(protocol_->audio_wire() == AudioWire::Pcm16);
  
      protocol_->OnConnected([this]() { DismissAlert(); });
-@@ -725,30 +727,6 @@ void Application::InitializeProtocol() {
+ 
+@@ -553,7 +561,8 @@ void Application::InitializeProtocol() {
+ 
+     protocol_->OnIncomingAudio([this](std::unique_ptr<AudioStreamPacket> packet) {
+         if (GetDeviceState() == kDeviceStateSpeaking) {
+-            audio_service_.PushPacketToDecodeQueue(std::move(packet));
++            // Chan: raw PCM arrives in bursts; block instead of dropping (back-pressure).
++            audio_service_.PushPacketToDecodeQueue(std::move(packet), audio_service_.IsRawPcmWire());
+         }
+     });
+ 
+@@ -725,30 +734,6 @@ void Application::InitializeProtocol() {
      protocol_->Start();
  }
  
@@ -111,7 +136,7 @@ index 31de205..84c98c4 100644
  void Application::Alert(const char* status, const char* message, const char* emotion,
                          const std::string_view& sound) {
      ESP_LOGW(TAG, "Alert [%s] %s: %s", emotion, status, message);
-@@ -833,6 +811,7 @@ void Application::ContinueOpenAudioChannel(ListeningMode mode) {
+@@ -833,6 +818,7 @@ void Application::ContinueOpenAudioChannel(ListeningMode mode) {
          if (!protocol_->OpenAudioChannel()) {
              // Return to idle so the device is not stuck in the connecting
              // state (not every failure path reports a network error)
@@ -119,7 +144,7 @@ index 31de205..84c98c4 100644
              SetDeviceState(kDeviceStateIdle);
              return;
          }
-@@ -970,6 +949,7 @@ void Application::ContinueWakeWordInvoke(const std::string& wake_word) {
+@@ -970,6 +956,7 @@ void Application::ContinueWakeWordInvoke(const std::string& wake_word) {
              // Return to idle so the device is not stuck in the connecting
              // state (not every failure path reports a network error), and
              // wake word detection is re-enabled by the idle state handler.
@@ -127,6 +152,19 @@ index 31de205..84c98c4 100644
              SetDeviceState(kDeviceStateIdle);
              return;
          }
+@@ -1051,7 +1038,11 @@ void Application::HandleStateChangedEvent() {
+                 // Only AFE wake word can be detected in speaking mode
+                 audio_service_.EnableWakeWordDetection(audio_service_.IsAfeWakeWord());
+             }
+-            audio_service_.ResetDecoder();
++            // Chan: with the raw PCM wire the protocol flushes playback itself on interruption,
++            // and the first chunks may already be queued when this state is reached.
++            if (!audio_service_.IsRawPcmWire()) {
++                audio_service_.ResetDecoder();
++            }
+             break;
+         case kDeviceStateNotifying:
+             display->SetStatus(Lang::Strings::SPEAKING);
 diff --git a/main/application.h b/main/application.h
 index f2b9a00..68f01d1 100644
 --- a/main/application.h
@@ -139,6 +177,82 @@ index f2b9a00..68f01d1 100644
      void SetListeningMode(ListeningMode mode);
      ListeningMode GetDefaultListeningMode() const;
      
+diff --git a/main/audio/audio_service.cc b/main/audio/audio_service.cc
+index 7f7582b..d51b194 100644
+--- a/main/audio/audio_service.cc
++++ b/main/audio/audio_service.cc
+@@ -406,8 +406,19 @@ void AudioService::OpusCodecTask() {
+             task.playback_id = packet->playback_id;
+             task.media_position_ms = packet->media_position_ms;
+ 
+-            SetDecodeSampleRate(packet->sample_rate, packet->frame_duration);
+             bool decoded = false;
++            if (raw_pcm_wire_ && packet->frame_duration == 0) {
++                // Chan: raw PCM16 at the codec's output rate; nothing to decode.
++                if (packet->sample_rate == codec_->output_sample_rate()) {
++                    task.pcm.resize(packet->payload.size() / sizeof(int16_t));
++                    memcpy(task.pcm.data(), packet->payload.data(), task.pcm.size() * sizeof(int16_t));
++                    decoded = true;
++                } else {
++                    ESP_LOGW(TAG, "raw PCM at %d Hz but codec runs at %d Hz; dropping", packet->sample_rate,
++                             codec_->output_sample_rate());
++                }
++            } else {
++            SetDecodeSampleRate(packet->sample_rate, packet->frame_duration);
+             if (opus_decoder_ != nullptr) {
+                 task.pcm.resize(decoder_frame_size_);
+                 esp_audio_dec_in_raw_t raw = {
+@@ -447,6 +458,7 @@ void AudioService::OpusCodecTask() {
+             } else {
+                 ESP_LOGE(TAG, "Audio decoder is not configured");
+             }
++            }  // raw / opus
+ 
+             lock.lock();
+             if (decoded && generation == playback_generation_ && !service_stopped_.load()) {
+@@ -474,7 +486,22 @@ void AudioService::OpusCodecTask() {
+             packet->sample_rate = 16000;
+             packet->timestamp = task.timestamp;
+ 
+-            if (opus_encoder_ != nullptr && task.pcm.size() == encoder_frame_size_) {
++            if (raw_pcm_wire_ && task.type == kAudioTaskTypeEncodeToSendQueue) {
++                // Chan: raw PCM16 to the wire, no Opus.
++                packet->payload.resize(task.pcm.size() * sizeof(int16_t));
++                memcpy(packet->payload.data(), task.pcm.data(), packet->payload.size());
++                {
++                    std::lock_guard<std::mutex> lock2(audio_queue_mutex_);
++                    if (audio_send_queue_.size() >= MAX_SEND_PACKETS_IN_QUEUE) {
++                        audio_send_queue_.pop_front();
++                    }
++                    audio_send_queue_.push_back(std::move(packet));
++                }
++                if (callbacks_.on_send_queue_available) {
++                    callbacks_.on_send_queue_available();
++                }
++                debug_statistics_.encode_count++;
++            } else if (opus_encoder_ != nullptr && task.pcm.size() == encoder_frame_size_) {
+                 packet->payload.resize(encoder_outbuf_size_);
+                 esp_audio_enc_in_frame_t in = {
+                     .buffer = (uint8_t*)(task.pcm.data()),
+diff --git a/main/audio/audio_service.h b/main/audio/audio_service.h
+index f8b510f..966f9a5 100644
+--- a/main/audio/audio_service.h
++++ b/main/audio/audio_service.h
+@@ -147,9 +147,14 @@ public:
+     bool ReadAudioData(std::vector<int16_t>& data, int sample_rate, int samples);
+     void ResetDecoder();
+     void SetModelsList(srmodel_list_t* models_list);
++    // Chan: when true, the encode path emits raw 16 kHz PCM16 and the decode path plays
++    // raw PCM packets (packet->frame_duration == 0) instead of Opus.
++    void SetRawPcmWire(bool raw) { raw_pcm_wire_ = raw; }
++    bool IsRawPcmWire() const { return raw_pcm_wire_; }
+ 
+ private:
+     AudioCodec* codec_ = nullptr;
++    bool raw_pcm_wire_ = false;
+     AudioServiceCallbacks callbacks_;
+     std::unique_ptr<AudioEngine> audio_engine_;
+     std::unique_ptr<AudioDebugger> audio_debugger_;
 diff --git a/main/boards/common/esp_video.cc b/main/boards/common/esp_video.cc
 index 2f31a49..4cf6f63 100644
 --- a/main/boards/common/esp_video.cc
@@ -639,3 +753,25 @@ index eda3fd7..ce17ee5 100644
      bool has_serial_number_ = false;
      bool has_activation_challenge_ = false;
      std::string current_version_;
+diff --git a/main/protocols/protocol.h b/main/protocols/protocol.h
+index cfa0dd2..8ef1817 100644
+--- a/main/protocols/protocol.h
++++ b/main/protocols/protocol.h
+@@ -34,6 +34,9 @@ struct BinaryProtocol3 {
+ 
+ enum AbortReason { kAbortReasonNone, kAbortReasonWakeWordDetected };
+ 
++// How audio crosses the wire: Opus packets (xiaozhi servers) or raw PCM16 (Chan/Gemini Live).
++enum class AudioWire { Opus, Pcm16 };
++
+ enum ListeningMode {
+     kListeningModeAutoStop,
+     kListeningModeManualStop,
+@@ -61,6 +64,7 @@ public:
+     virtual void CloseAudioChannel(bool send_goodbye = true) = 0;
+     virtual bool IsAudioChannelOpened() const = 0;
+     virtual bool SendAudio(std::unique_ptr<AudioStreamPacket> packet) = 0;
++    virtual AudioWire audio_wire() const { return AudioWire::Opus; }
+     virtual void SendWakeWordDetected(const std::string& wake_word);
+     virtual void SendStartListening(ListeningMode mode);
+     virtual void SendStopListening();

@@ -77,6 +77,10 @@ void ChanApp::onXiaozhiReady()
         }
     });
 
+    // Config is the source of truth for volume and brightness; Settings sliders tweak live.
+    GetHAL().setSpeakerVolume(static_cast<uint8_t>(_config.volume), false);
+    GetHAL().setBackLightBrightness(static_cast<uint8_t>(_config.brightness), false);
+
     debug_console_start([this](std::string_view line) { handle_debug_line(line); });
     mclog::tagInfo(kTag, "ui ready: {} screens", _config.screen_agents + _config.screen_sports + 2);
 }
@@ -84,6 +88,10 @@ void ChanApp::onXiaozhiReady()
 void ChanApp::tick()
 {
     if (!_ui_ready) return;
+    if (_shell.takeSettingsRequest()) {
+        mclog::tagInfo(kTag, "opening settings");
+        GetHAL().requestWarmReboot(kSettingsWarmBootTarget);  // never returns
+    }
     const uint32_t now = GetHAL().millis();
     poll_network(now);
     if (now - _last_attention_ms >= kAttentionPeriodMs) {
@@ -119,7 +127,9 @@ void ChanApp::apply_attention(uint32_t now_ms)
 {
     const bool quiet = isQuiet();
     const Output out = _attention.output(now_ms, quiet);
-    leds_apply(out, now_ms, -1.0f);
+    const float level = out.led == LedPattern::VoiceLevel ? _voice_level : -1.0f;
+    leds_apply(out, now_ms, level);
+    if (_voice_level > 0) _voice_level *= 0.85f;  // decay between chunks
     expressions_apply(out.face);
     const Sound s = _attention.take_sound(quiet);
     if (s != Sound::None) sounds_play(s);
@@ -193,6 +203,24 @@ void ChanApp::acknowledge()
     mclog::tagInfo(kTag, "acknowledged");
 }
 
+GeminiSetup ChanApp::buildGeminiSetup() const
+{
+    GeminiSetup s;
+    s.model = _config.gemini_model.empty() ? "gemini-3.8-live" : _config.gemini_model;
+    s.voice = _config.gemini_voice;
+    s.language = _config.language;
+    s.system_prompt = build_system_prompt(_config);
+    s.google_search = true;
+    // Function declarations are added by the tool registry (Task 6).
+    return s;
+}
+
+std::string ChanApp::handleToolCall(const ServerMsg::Call& call)
+{
+    mclog::tagWarn(kTag, "tool call without a registry: {}", call.name);
+    return R"({"error":"unknown tool"})";
+}
+
 void ChanApp::handle_debug_line(std::string_view line)
 {
     auto starts = [&](std::string_view p) { return line.substr(0, p.size()) == p; };
@@ -203,7 +231,7 @@ void ChanApp::handle_debug_line(std::string_view line)
     };
     mclog::tagInfo(kTag, "debug: {}", line);
     if (line == "help") {
-        mclog::tagInfo(kTag, "commands: attn <offline|listening|thinking|speaking|agent|celebrate|horn|sulk|clear|ack>, quiet <on|off|auto>, screen <face|agents|sports|settings>");
+        mclog::tagInfo(kTag, "commands: attn <offline|listening|thinking|speaking|agent|celebrate|horn|sulk|clear|ack>, quiet <on|off|auto>, screen <face|agents|sports|settings>, talk");
         return;
     }
     if (starts("attn ")) {
@@ -228,6 +256,10 @@ void ChanApp::handle_debug_line(std::string_view line)
         std::string_view a = arg("quiet ");
         _quiet_override = a == "on" ? 1 : a == "off" ? 0 : -1;
         mclog::tagInfo(kTag, "quiet override = {} (now quiet: {})", _quiet_override, isQuiet());
+        return;
+    }
+    if (line == "talk") {
+        hal_bridge::toggle_xiaozhi_chat_state();
         return;
     }
     if (starts("screen ")) {

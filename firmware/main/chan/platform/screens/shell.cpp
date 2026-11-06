@@ -70,8 +70,8 @@ void Shell::set_visible(lv_obj_t* obj, bool visible)
 void Shell::show(Screen screen)
 {
     if (screen == Screen::Settings) {
-        mclog::tagInfo(kTag, "opening settings");
-        GetHAL().requestWarmReboot(kSettingsWarmBootTarget);  // never returns
+        mclog::tagInfo(kTag, "settings requested");
+        _settings_requested = true;
         return;
     }
     _current = screen;
