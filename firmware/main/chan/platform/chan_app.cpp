@@ -4,6 +4,7 @@
 #include <chan/platform/camera_tool.h>
 #include <chan/platform/debug_console.h>
 #include <chan/platform/gemini_protocol.h>
+#include <chan/platform/http_server.h>
 #include <stackchan/stackchan.h>
 #include <chan/platform/expressions.h>
 #include <chan/platform/leds.h>
@@ -46,7 +47,49 @@ void ChanApp::init(const ChanConfig& cfg)
     _config     = cfg;
     _has_config = true;
     provision_wifi();
+    _agents = std::make_unique<AgentStore>(cfg.agents_max_sessions, static_cast<uint32_t>(cfg.agents_stale_min) * 60000u,
+                                           static_cast<uint32_t>(cfg.agents_renudge_min) * 60000u);
     register_tools();
+}
+
+void ChanApp::onAgentEvent(const AgentEvent& event)
+{
+    LvglLockGuard lock;
+    if (!_agents) return;
+    const uint32_t now = GetHAL().millis();
+    const Change change = _agents->apply(event, now);
+    mclog::tagInfo(kTag, "agent {} [{}] {} -> {}", event.agent, event.project, event.state, static_cast<int>(change));
+    if (change == Change::BecameNeedsAttention) {
+        auto it = _config.agent_colors.find(event.agent);
+        const uint32_t color = it != _config.agent_colors.end() ? it->second : Attention::kDefaultAgentColor;
+        _attention.raise(Signal::AgentAlert, now, color);
+        expressions_face_user();
+    } else if (!_agents->any_unacknowledged_attention()) {
+        _attention.clear(Signal::AgentAlert);
+    }
+    _agents_dirty = true;
+}
+
+std::string ChanApp::agentStatusJson()
+{
+    LvglLockGuard lock;
+    if (!_agents) return R"({"agents":[]})";
+    return _agents->to_json(GetHAL().millis());
+}
+
+void ChanApp::refresh_agents_screen(uint32_t now_ms, bool force)
+{
+    if (!_agents || !_shell.agents_root()) return;
+    if (_shell.current() != Screen::Agents) return;
+    static Screen last_screen = Screen::Face;
+    if (last_screen != _shell.current()) {
+        last_screen = _shell.current();
+        force = true;
+    }
+    if (!force && !_agents_dirty && now_ms - _agents_rendered_ms < 10000) return;
+    _agents_screen.render(_agents->rows(now_ms), now_ms, _config.agent_colors);
+    _agents_dirty = false;
+    _agents_rendered_ms = now_ms;
 }
 
 void ChanApp::setMood(Expression e, uint32_t hold_ms)
@@ -72,6 +115,7 @@ void ChanApp::onXiaozhiReady()
     _ui_ready = true;
     _shell.init(lv_screen_active(), _config);
     _shell.on_tap = [this]() { onTap(); };
+    if (_shell.agents_root()) _agents_screen.init(_shell.agents_root());
 
     // Head panel: pat = acknowledge; swipe front-to-back = next screen, back = previous.
     GetHAL().onHeadPetGesture.connect([this](HeadPetGesture g) {
@@ -105,6 +149,16 @@ void ChanApp::tick()
     }
     const uint32_t now = GetHAL().millis();
     poll_network(now);
+    if (_net_online && !_http_started) {
+        _http_started = true;
+        http_server_start(_config);
+    }
+    if (_agents && _agents->take_renudge(now)) {
+        mclog::tagInfo(kTag, "agent re-nudge");
+        _attention.queue_sound(Sound::Nudge);
+        expressions_face_user();
+    }
+    refresh_agents_screen(now, false);
     if (now - _last_attention_ms >= kAttentionPeriodMs) {
         _last_attention_ms = now;
         apply_attention(now);
@@ -163,6 +217,11 @@ void ChanApp::onXiaozhiStatus(const char* status)
         _attention.clear(Signal::Thinking);
         _attention.clear(Signal::Speaking);
         _attention.raise(Signal::Listening, now);
+        if (_agents && _agents->any_unacknowledged_attention()) {
+            _agents->acknowledge_all();
+            _attention.acknowledge();
+            _agents_dirty = true;
+        }
     } else if (st == "Speaking...") {
         _attention.clear(Signal::Thinking);
         _attention.clear(Signal::Listening);
@@ -218,6 +277,10 @@ void ChanApp::acknowledge()
 {
     LvglLockGuard lock;
     _attention.acknowledge();
+    if (_agents) {
+        _agents->acknowledge_all();
+        _agents_dirty = true;
+    }
     mclog::tagInfo(kTag, "acknowledged");
 }
 
@@ -309,7 +372,7 @@ void ChanApp::register_tools()
                });
     // Data tools: filled in by the agents, sports and weather features; empty until then.
     _tools.add({"get_agent_status", "Status of the owner's coding agents (Claude Code, Codex, Gemini CLI): which are working, done, or need attention.", kNoParams},
-               [](const std::string&) -> std::string { return R"({"agents":[]})"; });
+               [this](const std::string&) -> std::string { return agentStatusJson(); });
     _tools.add({"get_scores", "Live and upcoming games for the owner's followed teams.", kNoParams},
                [](const std::string&) -> std::string { return R"({"games":[]})"; });
     _tools.add({"get_weather", "Current local weather and time at the owner's location.", kNoParams},
@@ -326,7 +389,7 @@ void ChanApp::handle_debug_line(std::string_view line)
     };
     mclog::tagInfo(kTag, "debug: {}", line);
     if (line == "help") {
-        mclog::tagInfo(kTag, "commands: attn <offline|listening|thinking|speaking|agent|celebrate|horn|sulk|clear|ack>, quiet <on|off|auto>, screen <face|agents|sports|settings>, talk, look");
+        mclog::tagInfo(kTag, "commands: attn <offline|listening|thinking|speaking|agent|celebrate|horn|sulk|clear|ack>, quiet <on|off|auto>, screen <face|agents|sports|settings>, talk, look, agent <state>");
         return;
     }
     if (starts("attn ")) {
@@ -351,6 +414,17 @@ void ChanApp::handle_debug_line(std::string_view line)
         std::string_view a = arg("quiet ");
         _quiet_override = a == "on" ? 1 : a == "off" ? 0 : -1;
         mclog::tagInfo(kTag, "quiet override = {} (now quiet: {})", _quiet_override, isQuiet());
+        return;
+    }
+    if (starts("agent ")) {  // agent <needs_attention|working|done|ended> [name]
+        std::string_view a = arg("agent ");
+        AgentEvent e;
+        e.agent = "claude-code";
+        e.session = "debug";
+        e.project = "chan";
+        e.state = std::string(a.substr(0, a.find(' ')));
+        e.message = "debug event";
+        onAgentEvent(e);
         return;
     }
     if (line == "look") {

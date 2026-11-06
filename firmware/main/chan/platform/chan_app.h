@@ -4,11 +4,15 @@
 // update task (every ~20 ms, under the LVGL lock).
 #pragma once
 
+#include <chan/core/agents.h>
 #include <chan/core/attention.h>
 #include <chan/core/config.h>
 #include <chan/core/gemini_messages.h>
 #include <chan/core/tools.h>
+#include <chan/platform/screens/agents_screen.h>
 #include <chan/platform/screens/shell.h>
+
+#include <memory>
 
 #include <string_view>
 
@@ -61,6 +65,10 @@ public:
     // A mood the model asked for (set_expression): shown while no stronger signal is active.
     void setMood(Expression e, uint32_t hold_ms);
 
+    // Agent status (from the HTTP API; safe from any task).
+    void onAgentEvent(const AgentEvent& event);
+    std::string agentStatusJson();
+
     Shell& shell() { return _shell; }
     Attention& attention() { return _attention; }
 
@@ -86,6 +94,12 @@ private:
     Expression _mood = Expression::Neutral;
     uint32_t _mood_until_ms = 0;
     void register_tools();
+    void refresh_agents_screen(uint32_t now_ms, bool force);
+    std::unique_ptr<AgentStore> _agents;
+    AgentsScreen _agents_screen;
+    bool _agents_dirty = true;
+    uint32_t _agents_rendered_ms = 0;
+    bool _http_started = false;
 };
 
 }  // namespace chan::platform

@@ -592,6 +592,40 @@ index f20185a..2c339f8 100644
      void ReadRegs(uint8_t reg, uint8_t* buffer, size_t length);
      esp_err_t ResetBus(const char* reason);
  };
+diff --git a/main/boards/common/wifi_board.cc b/main/boards/common/wifi_board.cc
+index 5b3721d..e2ee2d5 100644
+--- a/main/boards/common/wifi_board.cc
++++ b/main/boards/common/wifi_board.cc
+@@ -17,6 +17,7 @@
+ #include <wifi_manager.h>
+ #include <wifi_station.h>
+ #include <ssid_manager.h>
++#include <chan/platform/chan_app.h>
+ #ifdef CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING
+ #include "blufi.h"
+ #endif
+@@ -67,6 +68,10 @@ void WifiBoard::StartNetwork() {
+         snprintf(hostname, sizeof(hostname), "%s-%02X%02X", config.ssid_prefix.c_str(), mac[4], mac[5]);
+         config.station_hostname = hostname;
+     }
++    // Chan: use the configured hostname (also used for mDNS) when present.
++    if (chan::platform::ChanApp::get().hasConfig()) {
++        config.station_hostname = chan::platform::ChanApp::get().config().hostname;
++    }
+     wifi_manager.Initialize(config);
+ 
+     // Set unified event callback - forward to NetworkEvent with SSID data
+@@ -283,7 +288,9 @@ void WifiBoard::SetPowerSaveLevel(PowerSaveLevel level) {
+     WifiPowerSaveLevel wifi_level;
+     switch (level) {
+         case PowerSaveLevel::LOW_POWER:
+-            wifi_level = WifiPowerSaveLevel::LOW_POWER;
++            // Chan: stay reachable on the LAN (agent hooks, mDNS) — MIN_MODEM instead of MAX_MODEM
++            // keeps round trips ~100 ms rather than ~1 s at a small idle-power cost.
++            wifi_level = WifiPowerSaveLevel::BALANCED;
+             break;
+         case PowerSaveLevel::BALANCED:
+             wifi_level = WifiPowerSaveLevel::BALANCED;
 diff --git a/main/boards/common/wifi_board.h b/main/boards/common/wifi_board.h
 index 7ee973c..8de99db 100644
 --- a/main/boards/common/wifi_board.h
