@@ -484,6 +484,7 @@ void StackChanAvatarDisplay::SetStatus(const char* status)
 
     bool is_idle      = false;
     bool is_listening = false;
+    chan::platform::ChanApp::get().onXiaozhiStatus(status);
 
     if (strcmp(status, Lang::Strings::LISTENING) == 0) {
         if (speaking_modifier_id_ >= 0) {
@@ -493,8 +494,6 @@ void StackChanAvatarDisplay::SetStatus(const char* status)
             speaking_modifier_id_ = -1;
         }
 
-        GetHAL().setRgbColor(0, 0, 50, 0);
-        GetHAL().refreshRgb();
 
     } else if (strcmp(status, Lang::Strings::STANDBY) == 0) {
         _is_xiaozhi_ready = true;
@@ -508,16 +507,12 @@ void StackChanAvatarDisplay::SetStatus(const char* status)
 
         is_idle = true;
 
-        GetHAL().setRgbColor(0, 0, 0, 0);
-        GetHAL().refreshRgb();
 
     } else if (strcmp(status, Lang::Strings::SPEAKING) == 0) {
         if (speaking_modifier_id_ < 0) {
             speaking_modifier_id_ = stackchan.addModifier(std::make_unique<SpeakingModifier>(0, 180, false));
         }
 
-        GetHAL().setRgbColor(0, 0, 0, 50);
-        GetHAL().refreshRgb();
     } else {
         avatar.setSpeech(status);
     }

@@ -1,10 +1,14 @@
 // ChanApp owns everything Chan adds on top of the stock avatar/voice runtime:
-// the parsed config, the screen shell, and (in later tasks) attention, agents,
-// sports and weather. It is a singleton driven from the stackchan update task.
+// the parsed config, the screen shell, attention (LEDs/face/sounds) and, in later
+// tasks, agents, sports and weather. It is a singleton driven from the stackchan
+// update task (every ~20 ms, under the LVGL lock).
 #pragma once
 
+#include <chan/core/attention.h>
 #include <chan/core/config.h>
 #include <chan/platform/screens/shell.h>
+
+#include <string_view>
 
 namespace chan::platform {
 
@@ -25,21 +29,41 @@ public:
     void onXiaozhiReady();
     // Called (under the LVGL lock) every ~20 ms from the stackchan update task.
     void tick();
+    // Called by the display whenever xiaozhi changes its status string
+    // (Listening… / Speaking… / Standby / Connecting…).
+    void onXiaozhiStatus(const char* status);
 
     // Tap anywhere on the face or an overlay: start/stop listening, with the stock
     // 2 s debounce and swallowing the click that follows a swipe.
     void onTap();
 
+    // High-level events (take the LVGL lock themselves; safe from any task).
+    void celebrate(uint32_t team_color, uint32_t alt_color, bool horn);
+    void sulk();
+    void agentAlert(uint32_t agent_color);
+    void acknowledge();
+
+    bool isQuiet() const;
+
     Shell& shell() { return _shell; }
+    Attention& attention() { return _attention; }
 
 private:
     void provision_wifi();
+    void handle_debug_line(std::string_view line);
+    void poll_network(uint32_t now_ms);
+    void apply_attention(uint32_t now_ms);
 
     ChanConfig _config;
     bool _has_config = false;
     bool _ui_ready   = false;
     Shell _shell;
+    Attention _attention;
     uint32_t _last_tap_ms = 0;
+    uint32_t _last_attention_ms = 0;
+    uint32_t _last_net_poll_ms = 0;
+    bool _net_online = true;
+    int _quiet_override = -1;  // -1 auto, 0 force off, 1 force on (debug)
 };
 
 }  // namespace chan::platform
