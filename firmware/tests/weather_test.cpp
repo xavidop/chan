@@ -59,7 +59,7 @@ TEST_CASE("wmo codes map to icons")
 TEST_CASE("request urls carry coordinates and units")
 {
     std::string u = open_meteo_url(39.47, -0.376, "metric");
-    CHECK(u.rfind("https://api.open-meteo.com/v1/forecast?", 0) == 0);
+    CHECK(u.rfind("http://api.open-meteo.com/v1/forecast?", 0) == 0);
     CHECK(u.find("latitude=39.47") != std::string::npos);
     CHECK(u.find("longitude=-0.376") != std::string::npos);
     CHECK(u.find("temperature_unit=fahrenheit") == std::string::npos);

@@ -16,7 +16,7 @@ TEST_CASE("parses full example")
     CHECK(cfg.quiet.enabled);
     CHECK(cfg.quiet.start_min == 1380);
     CHECK(cfg.quiet.end_min == 420);
-    CHECK(cfg.teams.size() == 5);
+    CHECK(cfg.teams.size() == 6);
     CHECK(cfg.teams[0].key == "valencia");
     CHECK(cfg.teams[0].color == 0xEE7203);
     CHECK(cfg.agent_colors.at("codex") == 0x10A37F);

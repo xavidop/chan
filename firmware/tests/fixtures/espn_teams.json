@@ -1,0 +1,78 @@
+{
+ "sports": [
+  {
+   "leagues": [
+    {
+     "teams": [
+      {
+       "team": {
+        "id": "18418",
+        "displayName": "Atlanta United FC",
+        "shortDisplayName": "Atlanta",
+        "abbreviation": "ATL",
+        "name": "Atlanta United FC",
+        "location": "Atlanta United FC",
+        "nickname": null
+       }
+      },
+      {
+       "team": {
+        "id": "20906",
+        "displayName": "Austin FC",
+        "shortDisplayName": "Austin",
+        "abbreviation": "ATX",
+        "name": "Austin FC",
+        "location": "Austin FC",
+        "nickname": null
+       }
+      },
+      {
+       "team": {
+        "id": "9720",
+        "displayName": "CF Montr\u00e9al",
+        "shortDisplayName": "CF Montr\u00e9al",
+        "abbreviation": "MTL",
+        "name": "CF Montr\u00e9al",
+        "location": "CF Montr\u00e9al",
+        "nickname": "Impact"
+       }
+      },
+      {
+       "team": {
+        "id": "21300",
+        "displayName": "Charlotte FC",
+        "shortDisplayName": "Charlotte",
+        "abbreviation": "CLT",
+        "name": "Charlotte FC",
+        "location": "Charlotte FC",
+        "nickname": null
+       }
+      },
+      {
+       "team": {
+        "id": "182",
+        "displayName": "Chicago Fire FC",
+        "shortDisplayName": "Chicago",
+        "abbreviation": "CHI",
+        "name": "Chicago Fire FC",
+        "location": "Chicago Fire FC",
+        "nickname": "Fire"
+       }
+      },
+      {
+       "team": {
+        "id": "184",
+        "displayName": "Colorado Rapids",
+        "shortDisplayName": "Colorado",
+        "abbreviation": "COL",
+        "name": "Colorado Rapids",
+        "location": "Colorado Rapids",
+        "nickname": "Rapids"
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

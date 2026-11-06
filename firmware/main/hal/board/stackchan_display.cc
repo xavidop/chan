@@ -255,6 +255,7 @@ void StackChanAvatarDisplay::SetupUI()
     auto avatar = std::make_unique<DefaultAvatar>();
     avatar->init(lv_screen_active());
     avatar->getPanel()->onClick().connect([]() { chan::platform::ChanApp::get().onTap(); });
+    lv_obj_add_flag(avatar->getPanel()->get(), LV_OBJ_FLAG_EVENT_BUBBLE);
 
     stackchan.attachAvatar(std::move(avatar));
     stackchan.addModifier(std::make_unique<BreathModifier>());

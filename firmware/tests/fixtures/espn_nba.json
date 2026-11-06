@@ -1,0 +1,268 @@
+{
+ "leagues": [
+  {
+   "abbreviation": "NBA",
+   "slug": "nba"
+  }
+ ],
+ "events": [
+  {
+   "id": "401909287",
+   "date": "2026-11-07T00:00Z",
+   "name": "Washington Wizards at Atlanta Hawks",
+   "shortName": "WSH @ ATL",
+   "status": {
+    "type": {
+     "state": "pre",
+     "completed": false,
+     "shortDetail": "11/6 - 7:00 PM EST"
+    },
+    "displayClock": "0.0",
+    "period": 0
+   },
+   "competitions": [
+    {
+     "competitors": [
+      {
+       "homeAway": "home",
+       "score": "0",
+       "team": {
+        "id": "1",
+        "displayName": "Atlanta Hawks",
+        "shortDisplayName": "Hawks",
+        "abbreviation": "ATL",
+        "name": "Hawks"
+       }
+      },
+      {
+       "homeAway": "away",
+       "score": "0",
+       "team": {
+        "id": "27",
+        "displayName": "Washington Wizards",
+        "shortDisplayName": "Wizards",
+        "abbreviation": "WSH",
+        "name": "Wizards"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "401909288",
+   "date": "2026-11-07T00:00Z",
+   "name": "Boston Celtics at Charlotte Hornets",
+   "shortName": "BOS @ CHA",
+   "status": {
+    "type": {
+     "state": "pre",
+     "completed": false,
+     "shortDetail": "11/6 - 7:00 PM EST"
+    },
+    "displayClock": "0.0",
+    "period": 0
+   },
+   "competitions": [
+    {
+     "competitors": [
+      {
+       "homeAway": "home",
+       "score": "0",
+       "team": {
+        "id": "30",
+        "displayName": "Charlotte Hornets",
+        "shortDisplayName": "Hornets",
+        "abbreviation": "CHA",
+        "name": "Hornets"
+       }
+      },
+      {
+       "homeAway": "away",
+       "score": "0",
+       "team": {
+        "id": "2",
+        "displayName": "Boston Celtics",
+        "shortDisplayName": "Celtics",
+        "abbreviation": "BOS",
+        "name": "Celtics"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "401909289",
+   "date": "2026-11-07T00:30Z",
+   "name": "Philadelphia 76ers at Cleveland Cavaliers",
+   "shortName": "PHI @ CLE",
+   "status": {
+    "type": {
+     "state": "pre",
+     "completed": false,
+     "shortDetail": "11/6 - 7:30 PM EST"
+    },
+    "displayClock": "0.0",
+    "period": 0
+   },
+   "competitions": [
+    {
+     "competitors": [
+      {
+       "homeAway": "home",
+       "score": "0",
+       "team": {
+        "id": "5",
+        "displayName": "Cleveland Cavaliers",
+        "shortDisplayName": "Cavaliers",
+        "abbreviation": "CLE",
+        "name": "Cavaliers"
+       }
+      },
+      {
+       "homeAway": "away",
+       "score": "0",
+       "team": {
+        "id": "20",
+        "displayName": "Philadelphia 76ers",
+        "shortDisplayName": "76ers",
+        "abbreviation": "PHI",
+        "name": "76ers"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "401909290",
+   "date": "2026-11-07T01:00Z",
+   "name": "Utah Jazz at Dallas Mavericks",
+   "shortName": "UTAH @ DAL",
+   "status": {
+    "type": {
+     "state": "pre",
+     "completed": false,
+     "shortDetail": "11/6 - 8:00 PM EST"
+    },
+    "displayClock": "0.0",
+    "period": 0
+   },
+   "competitions": [
+    {
+     "competitors": [
+      {
+       "homeAway": "home",
+       "score": "0",
+       "team": {
+        "id": "6",
+        "displayName": "Dallas Mavericks",
+        "shortDisplayName": "Mavericks",
+        "abbreviation": "DAL",
+        "name": "Mavericks"
+       }
+      },
+      {
+       "homeAway": "away",
+       "score": "0",
+       "team": {
+        "id": "26",
+        "displayName": "Utah Jazz",
+        "shortDisplayName": "Jazz",
+        "abbreviation": "UTAH",
+        "name": "Jazz"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "401909291",
+   "date": "2026-11-07T01:00Z",
+   "name": "Oklahoma City Thunder at Memphis Grizzlies",
+   "shortName": "OKC @ MEM",
+   "status": {
+    "type": {
+     "state": "pre",
+     "completed": false,
+     "shortDetail": "11/6 - 8:00 PM EST"
+    },
+    "displayClock": "0.0",
+    "period": 0
+   },
+   "competitions": [
+    {
+     "competitors": [
+      {
+       "homeAway": "home",
+       "score": "0",
+       "team": {
+        "id": "29",
+        "displayName": "Memphis Grizzlies",
+        "shortDisplayName": "Grizzlies",
+        "abbreviation": "MEM",
+        "name": "Grizzlies"
+       }
+      },
+      {
+       "homeAway": "away",
+       "score": "0",
+       "team": {
+        "id": "25",
+        "displayName": "Oklahoma City Thunder",
+        "shortDisplayName": "Thunder",
+        "abbreviation": "OKC",
+        "name": "Thunder"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "401909292",
+   "date": "2026-11-07T01:00Z",
+   "name": "Toronto Raptors at Milwaukee Bucks",
+   "shortName": "TOR @ MIL",
+   "status": {
+    "type": {
+     "state": "pre",
+     "completed": false,
+     "shortDetail": "11/6 - 8:00 PM EST"
+    },
+    "displayClock": "0.0",
+    "period": 0
+   },
+   "competitions": [
+    {
+     "competitors": [
+      {
+       "homeAway": "home",
+       "score": "0",
+       "team": {
+        "id": "15",
+        "displayName": "Milwaukee Bucks",
+        "shortDisplayName": "Bucks",
+        "abbreviation": "MIL",
+        "name": "Bucks"
+       }
+      },
+      {
+       "homeAway": "away",
+       "score": "0",
+       "team": {
+        "id": "28",
+        "displayName": "Toronto Raptors",
+        "shortDisplayName": "Raptors",
+        "abbreviation": "TOR",
+        "name": "Raptors"
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

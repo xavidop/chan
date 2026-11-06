@@ -9,9 +9,12 @@
 #include <chan/core/config.h>
 #include <chan/core/gemini_messages.h>
 #include <chan/core/tools.h>
+#include <chan/core/sports.h>
 #include <chan/core/weather.h>
 #include <chan/platform/screens/agents_screen.h>
 #include <chan/platform/screens/face_overlay.h>
+#include <chan/platform/screens/sports_screen.h>
+#include <chan/platform/screens/weather_screen.h>
 #include <chan/platform/screens/shell.h>
 
 #include <memory>
@@ -69,6 +72,11 @@ public:
     // A mood the model asked for (set_expression): shown while no stronger signal is active.
     void setMood(Expression e, uint32_t hold_ms);
 
+    // Sports (filled by the network task; safe from any task).
+    std::string scoresJson();
+    void onScoreEvent(const ScoreEvent& e);
+    void debugFakeScore(const std::string& league, const std::string& team_key, bool opponent);
+
     // Weather/location (filled by the network task; safe from any task).
     std::string weatherJson();
     std::string localTimeHHMM() const;
@@ -118,8 +126,26 @@ private:
     uint32_t _weather_fetched_ms = 0;
     bool _weather_dirty = false;
     bool _tz_applied = false;
+    std::string _pending_tz;
+    uint32_t _head_press_ms = 0;
     bool _idle_face = true;
     uint32_t _last_clock_ms = 0;
+    void poll_sports(uint32_t now_ms);
+    void sports_lookback();
+    void refresh_sports_screen(uint32_t now_ms, bool force);
+    void refresh_weather_screen(uint32_t now_ms, bool force);
+    ScoreTracker _scores;
+    std::vector<Game> _followed_games;
+    std::map<std::string, Game> _last_results;
+    bool _sports_dirty = true;
+    uint32_t _sports_rendered_ms = 0;
+    uint32_t _next_sports_poll_ms = 0;
+    int _lookback_yday = -1;
+    SportsScreen _sports_screen;
+    WeatherScreen _weather_screen;
+    uint32_t _weather_rendered_ms = 0;
+    uint32_t _banner_until_ms = 0;
+    Screen _banner_return = Screen::Face;
 };
 
 }  // namespace chan::platform

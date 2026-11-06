@@ -18,8 +18,11 @@
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <freertos/idf_additions.h>
+#include <esp_heap_caps.h>
 
 #include <algorithm>
+#include <set>
 #include <ctime>
 
 namespace chan::platform {
@@ -124,22 +127,30 @@ void ChanApp::onXiaozhiReady()
     _shell.init(lv_screen_active(), _config);
     _shell.on_tap = [this]() { onTap(); };
     if (_shell.agents_root()) _agents_screen.init(_shell.agents_root());
+    if (_shell.sports_root()) _sports_screen.init(_shell.sports_root());
+    if (_shell.weather_root()) _weather_screen.init(_shell.weather_root());
     _face_overlay.init(lv_screen_active());
-    xTaskCreatePinnedToCore(net_task, "chan_net", 12288, this, 2, nullptr, 0);
+    _next_sports_poll_ms = GetHAL().millis() + 15000;  // let the audio engine finish allocating first
+    // Stack in PSRAM: this task only does network I/O and parsing (never NVS/flash writes).
+    xTaskCreatePinnedToCoreWithCaps(net_task, "chan_net", 16384, this, 2, nullptr, 0, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
 
     // Head panel: pat = acknowledge; swipe front-to-back = next screen, back = previous.
+    // The capacitive head panel produces phantom presses and swipes, so: swipes are not used for
+    // navigation (the screen swipe is), and a pat only counts as a press held 400 ms–3 s then released.
     GetHAL().onHeadPetGesture.connect([this](HeadPetGesture g) {
+        const uint32_t now = GetHAL().millis();
+        mclog::tagInfo(kTag, "head gesture {}", static_cast<int>(g));
         if (g == HeadPetGesture::Press) {
-            acknowledge();
+            _head_press_ms = now;
             return;
         }
-        if (g != HeadPetGesture::SwipeForward && g != HeadPetGesture::SwipeBackward) return;
-        LvglLockGuard lock;
-        if (g == HeadPetGesture::SwipeForward) {
-            _shell.next();
-        } else {
-            _shell.prev();
+        if (g == HeadPetGesture::Release) {
+            const uint32_t held = _head_press_ms ? now - _head_press_ms : 0;
+            _head_press_ms = 0;
+            if (held >= 400 && held <= 3000) acknowledge();
+            return;
         }
+        // SwipeForward / SwipeBackward: ignored (too noisy on this sensor).
     });
 
     // Config is the source of truth for volume and brightness; Settings sliders tweak live.
@@ -147,7 +158,7 @@ void ChanApp::onXiaozhiReady()
     GetHAL().setBackLightBrightness(static_cast<uint8_t>(_config.brightness), false);
 
     debug_console_start([this](std::string_view line) { handle_debug_line(line); });
-    mclog::tagInfo(kTag, "ui ready: {} screens", _config.screen_agents + _config.screen_sports + 2);
+    mclog::tagInfo(kTag, "ui ready: {} screens", _config.screen_agents + _config.screen_sports + _config.screen_weather + 2);
 }
 
 void ChanApp::tick()
@@ -169,8 +180,21 @@ void ChanApp::tick()
         expressions_face_user();
     }
     refresh_agents_screen(now, false);
+    refresh_sports_screen(now, false);
+    refresh_weather_screen(now, false);
+    if (_banner_until_ms != 0 && static_cast<int32_t>(now - _banner_until_ms) >= 0) {
+        _banner_until_ms = 0;
+        _sports_screen.hide_banner();
+        if (_shell.current() == Screen::Sports) _shell.show(_banner_return);
+    }
     if (now - _last_clock_ms >= 1000) {
         _last_clock_ms = now;
+        std::string tz;
+        {
+            std::lock_guard<std::mutex> lock(_wx_mutex);
+            tz.swap(_pending_tz);
+        }
+        if (!tz.empty()) apply_timezone(tz);
         _face_overlay.set_time(localTimeHHMM());
         bool dirty = false;
         std::optional<Weather> w;
@@ -266,6 +290,7 @@ void ChanApp::onTap()
 {
     const uint32_t now = GetHAL().millis();
     if (now - _shell.last_gesture_ms() < kSwipeSwallowMs) return;
+    if (now - _shell.last_long_press_ms() < 1500) return;
     if (_last_tap_ms != 0 && now - _last_tap_ms < kTapDebounceMs) return;
     if (!hal_bridge::is_xiaozhi_ready()) return;
     if (isQuiet()) {
@@ -385,21 +410,22 @@ void ChanApp::register_tools()
                    setMood(Expression::Happy, 6000);
                    return R"({"ok":true})";
                });
-    _tools.add({"show_screen", "Switch what the screen shows. screen: face, agents (coding agents status) or sports (live scores).",
+    _tools.add({"show_screen", "Switch what the screen shows. screen: face, agents (coding agents status), sports (live scores and last results) or weather.",
                 R"({"type":"OBJECT","properties":{"screen":{"type":"STRING"}}})"},
                [this](const std::string& args) -> std::string {
                    const std::string which = arg_string(args, "screen", "face");
                    LvglLockGuard lock;
                    if (which == "agents") _shell.show(Screen::Agents);
                    else if (which == "sports") _shell.show(Screen::Sports);
+                   else if (which == "weather") _shell.show(Screen::Weather);
                    else _shell.show(Screen::Face);
                    return R"({"ok":true})";
                });
     // Data tools: filled in by the agents, sports and weather features; empty until then.
     _tools.add({"get_agent_status", "Status of the owner's coding agents (Claude Code, Codex, Gemini CLI): which are working, done, or need attention.", kNoParams},
                [this](const std::string&) -> std::string { return agentStatusJson(); });
-    _tools.add({"get_scores", "Live and upcoming games for the owner's followed teams.", kNoParams},
-               [](const std::string&) -> std::string { return R"({"games":[]})"; });
+    _tools.add({"get_scores", "Live/upcoming games today for the owner's followed teams, plus each team's last result.", kNoParams},
+               [this](const std::string&) -> std::string { return scoresJson(); });
     _tools.add({"get_weather", "Current local weather, today's high/low and the local time at the owner's location.", kNoParams},
                [this](const std::string&) -> std::string { return weatherJson(); });
 }
@@ -450,6 +476,15 @@ void ChanApp::net_loop()
         vTaskDelay(pdMS_TO_TICKS(2000));
         if (!_net_online) continue;
         const uint32_t now = GetHAL().millis();
+        bool have_weather = false;
+        {
+            std::lock_guard<std::mutex> lock(_wx_mutex);
+            have_weather = _weather.has_value();
+        }
+        if (have_weather) {  // cheap things first: the face shows the forecast within seconds
+            poll_sports(now);
+            sports_lookback();
+        }
         if (static_cast<int32_t>(now - next_attempt_ms) < 0) continue;
 
         std::optional<Location> loc;
@@ -458,16 +493,14 @@ void ChanApp::net_loop()
             loc = _loc;
         }
         if (!loc) {
-            JsonDocument doc;
+            JsonDocument doc(psram_allocator());
             std::string err;
             if (!http_get_json(ipwho_url(), doc, nullptr, err, 16 * 1024)) {
                 mclog::tagWarn(kTag, "location lookup failed: {}", err);
                 next_attempt_ms = now + kRetryMs;
                 continue;
             }
-            std::string json;
-            serializeJson(doc, json);
-            loc = parse_ipwho(json);
+            loc = parse_ipwho(doc.as<JsonVariantConst>());
             if (!loc) {
                 mclog::tagWarn(kTag, "location response not usable");
                 next_attempt_ms = now + kRetryMs;
@@ -479,7 +512,8 @@ void ChanApp::net_loop()
                 _loc = loc;
             }
             if (!_tz_applied && !loc->timezone.empty()) {
-                apply_timezone(loc->timezone);
+                std::lock_guard<std::mutex> lock(_wx_mutex);
+                _pending_tz = loc->timezone;  // applied by tick() on an internal-stack task (NVS write)
                 _tz_applied = true;
             }
         }
@@ -490,16 +524,14 @@ void ChanApp::net_loop()
             need_weather = !_weather || now - _weather_fetched_ms >= kWeatherPeriodMs;
         }
         if (!need_weather) continue;
-        JsonDocument doc;
+        JsonDocument doc(psram_allocator());
         std::string err;
         if (!http_get_json(open_meteo_url(loc->lat, loc->lon, _config.units), doc, nullptr, err, 32 * 1024)) {
             mclog::tagWarn(kTag, "weather fetch failed: {}", err);
             next_attempt_ms = now + kRetryMs;
             continue;
         }
-        std::string json;
-        serializeJson(doc, json);
-        auto w = parse_open_meteo(json);
+        auto w = parse_open_meteo(doc.as<JsonVariantConst>());
         if (!w) {
             mclog::tagWarn(kTag, "weather response not usable");
             next_attempt_ms = now + kRetryMs;
@@ -507,11 +539,277 @@ void ChanApp::net_loop()
         }
         mclog::tagInfo(kTag, "weather: {:.1f} code {} ({}) high {:.1f} low {:.1f}", w->temp, w->code,
                        condition_name(icon_for_code(w->code)), w->high, w->low);
-        std::lock_guard<std::mutex> lock(_wx_mutex);
-        _weather = w;
-        _weather_fetched_ms = now;
-        _weather_dirty = true;
+        {
+            std::lock_guard<std::mutex> lock(_wx_mutex);
+            _weather = w;
+            _weather_fetched_ms = now;
+            _weather_dirty = true;
+        }
     }
+}
+
+namespace {
+std::string local_date(const char* fmt, int days_back = 0)
+{
+    time_t now = time(nullptr) - static_cast<time_t>(days_back) * 86400;
+    struct tm tm_now;
+    localtime_r(&now, &tm_now);
+    if (tm_now.tm_year + 1900 < 2020) return "";
+    char buf[16];
+    strftime(buf, sizeof(buf), fmt, &tm_now);
+    return buf;
+}
+
+std::vector<Game> fetch_league(const std::string& league, int days_back, std::string& err)
+{
+    std::vector<Game> games;
+    JsonDocument doc(psram_allocator());
+    if (league == "mlb") {
+        const std::string d = local_date("%Y-%m-%d", days_back);
+        if (d.empty() || !http_get_json(mlb_schedule_url(d), doc, &mlb_filter(), err)) return games;
+        return parse_mlb_schedule(doc.as<JsonVariantConst>());
+    }
+    const std::string d = days_back > 0 ? local_date("%Y%m%d", days_back) : "";
+    if (days_back > 0 && d.empty()) return games;
+    if (!http_get_json(espn_scoreboard_url(league, d), doc, &espn_filter(), err)) return games;
+    return parse_espn_scoreboard(doc.as<JsonVariantConst>(), league);
+}
+}  // namespace
+
+void ChanApp::poll_sports(uint32_t now_ms)
+{
+    if (_config.teams.empty() || !_config.screen_sports) return;
+    if (static_cast<int32_t>(now_ms - _next_sports_poll_ms) < 0) return;
+    std::set<std::string> leagues;
+    for (const auto& t : _config.teams) leagues.insert(t.league);
+    std::vector<Game> all;
+    bool any_error = false;
+    for (const auto& league : leagues) {
+        std::string err;
+        auto games = fetch_league(league, 0, err);
+        if (!err.empty()) {
+            any_error = true;
+            mclog::tagWarn(kTag, "sports {}: {}", league, err);
+            continue;
+        }
+        all.insert(all.end(), games.begin(), games.end());
+        vTaskDelay(pdMS_TO_TICKS(300));
+    }
+    std::vector<ScoreEvent> events;
+    bool live = false, pending = false;
+    if (!all.empty() || !any_error) {
+        std::lock_guard<std::mutex> lock(_wx_mutex);
+        events = _scores.update(all, _config.teams);
+        _followed_games = _scores.followed_games();
+        _last_results = _scores.last_results();
+        _sports_dirty = true;
+        for (const auto& g : _followed_games) {
+            if (g.status == GameStatus::Live) live = true;
+            else if (g.status == GameStatus::Scheduled) pending = true;
+        }
+    }
+    const uint32_t interval = live ? 15000u : pending ? 600000u : 3600000u;
+    _next_sports_poll_ms = now_ms + (any_error && all.empty() ? 60000u : interval);
+    mclog::tagInfo(kTag, "sports: {} games, {} followed ({}), next poll in {} s", all.size(), _followed_games.size(),
+                   live ? "live" : pending ? "upcoming" : "quiet", (_next_sports_poll_ms - now_ms) / 1000);
+    for (const auto& e : events) onScoreEvent(e);
+}
+
+namespace {
+std::vector<Team> teams_missing_result(const std::string& league, const std::vector<Team>& teams, const std::map<std::string, Game>& last)
+{
+    std::vector<Team> out;
+    for (const auto& t : teams) {
+        if (t.league == league && !last.count(t.key)) out.push_back(t);
+    }
+    return out;
+}
+}  // namespace
+
+void ChanApp::sports_lookback()
+{
+    // Once a day: recent scoreboards first, then each still-missing team's season schedule, so the
+    // Sports screen can always show a "last result" (off-season teams included).
+    if (_config.teams.empty() || !_config.screen_sports) return;
+    time_t now = time(nullptr);
+    struct tm tm_now;
+    localtime_r(&now, &tm_now);
+    if (tm_now.tm_year + 1900 < 2020 || tm_now.tm_yday == _lookback_yday) return;
+    _lookback_yday = tm_now.tm_yday;
+    const int season = tm_now.tm_year + 1900;
+    std::set<std::string> leagues;
+    for (const auto& t : _config.teams) leagues.insert(t.league);
+    for (const auto& league : leagues) {
+        for (int day = 1; day <= 3; ++day) {
+            std::map<std::string, Game> last;
+            {
+                std::lock_guard<std::mutex> lock(_wx_mutex);
+                last = _scores.last_results();
+            }
+            if (teams_missing_result(league, _config.teams, last).empty()) break;
+            std::string err;
+            auto games = fetch_league(league, day, err);
+            if (!err.empty()) {
+                mclog::tagWarn(kTag, "lookback {} -{}d: {}", league, day, err);
+                break;
+            }
+            std::lock_guard<std::mutex> lock(_wx_mutex);
+            _scores.remember_results(games, _config.teams);
+            _last_results = _scores.last_results();
+            _sports_dirty = true;
+        }
+        std::map<std::string, Game> last;
+        {
+            std::lock_guard<std::mutex> lock(_wx_mutex);
+            last = _scores.last_results();
+        }
+        auto missing = teams_missing_result(league, _config.teams, last);
+        if (missing.empty()) continue;
+        // Resolve team ids from the league's team list, then read each team's season schedule.
+        std::vector<TeamRef> refs;
+        {
+            JsonDocument doc(psram_allocator());
+            std::string err;
+            const bool ok = league == "mlb" ? http_get_json(mlb_teams_url(), doc, &mlb_teams_filter(), err)
+                                            : http_get_json(espn_teams_url(league), doc, &espn_teams_filter(), err);
+            if (!ok) {
+                mclog::tagWarn(kTag, "team list {}: {}", league, err);
+                continue;
+            }
+            refs = league == "mlb" ? parse_mlb_teams(doc.as<JsonVariantConst>()) : parse_espn_teams(doc.as<JsonVariantConst>());
+        }
+        for (const auto& team : missing) {
+            const std::string id = find_team_id(refs, team);
+            if (id.empty()) {
+                mclog::tagWarn(kTag, "no team id for {} in {}", team.name, league);
+                continue;
+            }
+            for (int attempt = 0; attempt < 2; ++attempt) {  // this season, then last season (early in the year)
+                JsonDocument doc(psram_allocator());
+                std::string err;
+                std::vector<Game> games;
+                if (league == "mlb") {
+                    if (!http_get_json(mlb_team_schedule_url(id, season - attempt), doc, &mlb_filter(), err)) break;
+                    games = parse_mlb_schedule(doc.as<JsonVariantConst>());
+                } else {
+                    if (!http_get_json(espn_team_schedule_url(league, id), doc, &espn_filter(), err)) break;
+                    games = parse_espn_scoreboard(doc.as<JsonVariantConst>(), league);
+                }
+                bool found = false;
+                {
+                    std::lock_guard<std::mutex> lock(_wx_mutex);
+                    _scores.remember_results(games, _config.teams);
+                    _last_results = _scores.last_results();
+                    found = _last_results.count(team.key) > 0;
+                    _sports_dirty = true;
+                }
+                mclog::tagInfo(kTag, "schedule {} ({}): {} games, last result {}", team.name, id, games.size(), found ? "found" : "none");
+                if (found || league != "mlb") break;
+            }
+            vTaskDelay(pdMS_TO_TICKS(300));
+        }
+    }
+    mclog::tagInfo(kTag, "sports lookback done: {} teams with a last result", _last_results.size());
+}
+
+void ChanApp::onScoreEvent(const ScoreEvent& e)
+{
+    const Team* team = nullptr;
+    for (const auto& t : _config.teams) {
+        if (t.key == e.team_key) team = &t;
+    }
+    if (!team) return;
+    const bool horn = e.sport == Sport::Soccer || e.sport == Sport::Hockey;
+    mclog::tagInfo(kTag, "score event: {} {} {} (+{})", e.ours ? "OURS" : "opponent", team->display_name, e.line, e.points);
+    LvglLockGuard lock;
+    const uint32_t now = GetHAL().millis();
+    if (_shell.current() != Screen::Sports) _banner_return = _shell.current();
+    _shell.show(Screen::Sports);
+    _sports_dirty = true;
+    if (e.ours) {
+        _attention.raise(Signal::Celebrate, now, team->color, team->alt_color);
+        if (horn) _attention.queue_sound(Sound::GoalHorn);
+        expressions_dance();
+        _sports_screen.show_banner(e.line, team->color, team->alt_color);
+    } else {
+        _attention.raise(Signal::Sulk, now);
+        _sports_screen.hide_banner();
+    }
+    _banner_until_ms = now + Attention::kDefaultTimedMs;
+}
+
+std::string ChanApp::scoresJson()
+{
+    std::lock_guard<std::mutex> lock(_wx_mutex);
+    return games_json(_followed_games, _last_results);
+}
+
+void ChanApp::debugFakeScore(const std::string& league, const std::string& team_key, bool opponent)
+{
+    const Team* team = nullptr;
+    for (const auto& t : _config.teams) {
+        if (t.key == team_key && t.league == league) team = &t;
+    }
+    if (!team) {
+        mclog::tagWarn(kTag, "fake-score: no followed team {} in {}", team_key, league);
+        return;
+    }
+    Game g;
+    g.id = "fake-" + team_key;
+    g.league = league;
+    g.home = Side{team->name, "", 0};
+    g.away = Side{"Rivals FC", "RIV", 0};
+    g.status = GameStatus::Live;
+    g.clock = "test";
+    g.start_epoch = static_cast<uint64_t>(time(nullptr));
+    const int pts = sport_for_league(league) == Sport::Football ? 6 : sport_for_league(league) == Sport::Basketball ? 3 : 1;
+    std::vector<ScoreEvent> events;
+    {
+        std::lock_guard<std::mutex> lock(_wx_mutex);
+        _scores.update({g}, _config.teams);
+        if (opponent) g.away.score += pts;
+        else g.home.score += pts;
+        events = _scores.update({g}, _config.teams);
+        _followed_games = _scores.followed_games();
+        _sports_dirty = true;
+    }
+    for (const auto& e : events) onScoreEvent(e);
+}
+
+void ChanApp::refresh_sports_screen(uint32_t now_ms, bool force)
+{
+    if (!_shell.sports_root() || _shell.current() != Screen::Sports) return;
+    static Screen last_screen = Screen::Face;
+    if (last_screen != _shell.current()) {
+        last_screen = _shell.current();
+        force = true;
+    }
+    if (!force && !_sports_dirty && now_ms - _sports_rendered_ms < 15000) return;
+    std::vector<Game> games;
+    std::map<std::string, Game> last;
+    {
+        std::lock_guard<std::mutex> lock(_wx_mutex);
+        games = _followed_games;
+        last = _last_results;
+        _sports_dirty = false;
+    }
+    _sports_screen.render(games, last, _config.teams, static_cast<uint64_t>(time(nullptr)));
+    _sports_rendered_ms = now_ms;
+}
+
+void ChanApp::refresh_weather_screen(uint32_t now_ms, bool force)
+{
+    if (!_shell.weather_root() || _shell.current() != Screen::Weather) return;
+    if (!force && now_ms - _weather_rendered_ms < 5000) return;
+    std::optional<Location> loc;
+    std::optional<Weather> w;
+    {
+        std::lock_guard<std::mutex> lock(_wx_mutex);
+        loc = _loc;
+        w = _weather;
+    }
+    _weather_screen.render(loc, w, _config.units, localTimeHHMM());
+    _weather_rendered_ms = now_ms;
 }
 
 void ChanApp::handle_debug_line(std::string_view line)
@@ -524,7 +822,7 @@ void ChanApp::handle_debug_line(std::string_view line)
     };
     mclog::tagInfo(kTag, "debug: {}", line);
     if (line == "help") {
-        mclog::tagInfo(kTag, "commands: attn <offline|listening|thinking|speaking|agent|celebrate|horn|sulk|clear|ack>, quiet <on|off|auto>, screen <face|agents|sports|settings>, talk, look, weather, agent <state>");
+        mclog::tagInfo(kTag, "commands: attn <offline|listening|thinking|speaking|agent|celebrate|horn|sulk|clear|ack>, quiet <on|off|auto>, screen <face|agents|sports|weather|settings>, talk, look, weather, overlay, agent <state>, fake-score <league> <team_key> [opp]");
         return;
     }
     if (starts("attn ")) {
@@ -562,6 +860,28 @@ void ChanApp::handle_debug_line(std::string_view line)
         onAgentEvent(e);
         return;
     }
+    if (starts("fake-score ")) {  // fake-score <league> <team_key> [opp]
+        std::string a(arg("fake-score "));
+        auto sp1 = a.find(' ');
+        if (sp1 == std::string::npos) { mclog::tagWarn(kTag, "usage: fake-score <league> <team_key> [opp]"); return; }
+        std::string league = a.substr(0, sp1);
+        std::string rest = a.substr(sp1 + 1);
+        auto sp2 = rest.find(' ');
+        std::string key = rest.substr(0, sp2);
+        bool opp = sp2 != std::string::npos && rest.substr(sp2 + 1) == "opp";
+        debugFakeScore(league, key, opp);
+        return;
+    }
+    if (line == "overlay") {
+        bool w = false;
+        {
+            std::lock_guard<std::mutex> lock(_wx_mutex);
+            w = _weather.has_value();
+        }
+        mclog::tagInfo(kTag, "overlay: screen={} idle_face={} quiet={} weather={} screen_weather={} time={}", static_cast<int>(_shell.current()),
+                       _idle_face, isQuiet(), w, _config.screen_weather, localTimeHHMM());
+        return;
+    }
     if (line == "weather") {
         mclog::tagInfo(kTag, "{} @ {}", weatherJson(), localTimeHHMM());
         return;
@@ -583,6 +903,7 @@ void ChanApp::handle_debug_line(std::string_view line)
         if (a == "face") _shell.show(Screen::Face);
         else if (a == "agents") _shell.show(Screen::Agents);
         else if (a == "sports") _shell.show(Screen::Sports);
+        else if (a == "weather") _shell.show(Screen::Weather);
         else if (a == "settings") _shell.show(Screen::Settings);
         return;
     }

@@ -92,3 +92,6 @@ CONFIG_USE_DEVICE_AEC=y
 
 # Chan: accept cross-signed roots (Google serves GTS Root R4 cross-signed by GlobalSign Root CA)
 CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_CROSS_SIGNED_VERIFY=y
+
+# Chan: mDNS task stack in PSRAM (internal RAM is scarce)
+CONFIG_MDNS_TASK_CREATE_FROM_SPIRAM=y

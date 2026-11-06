@@ -1,0 +1,268 @@
+{
+ "leagues": [
+  {
+   "abbreviation": "NFL",
+   "slug": "nfl"
+  }
+ ],
+ "events": [
+  {
+   "id": "401873037",
+   "date": "2026-11-06T01:15Z",
+   "name": "Jacksonville Jaguars at Baltimore Ravens",
+   "shortName": "JAX @ BAL",
+   "status": {
+    "type": {
+     "state": "post",
+     "completed": true,
+     "shortDetail": "Final"
+    },
+    "displayClock": "0:00",
+    "period": 4
+   },
+   "competitions": [
+    {
+     "competitors": [
+      {
+       "homeAway": "home",
+       "score": "10",
+       "team": {
+        "id": "33",
+        "displayName": "Baltimore Ravens",
+        "shortDisplayName": "Ravens",
+        "abbreviation": "BAL",
+        "name": "Ravens"
+       }
+      },
+      {
+       "homeAway": "away",
+       "score": "33",
+       "team": {
+        "id": "30",
+        "displayName": "Jacksonville Jaguars",
+        "shortDisplayName": "Jaguars",
+        "abbreviation": "JAX",
+        "name": "Jaguars"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "401873038",
+   "date": "2026-11-08T14:30Z",
+   "name": "Cincinnati Bengals at Atlanta Falcons",
+   "shortName": "CIN VS ATL",
+   "status": {
+    "type": {
+     "state": "pre",
+     "completed": false,
+     "shortDetail": "11/8 - 9:30 AM EST"
+    },
+    "displayClock": "0:00",
+    "period": 0
+   },
+   "competitions": [
+    {
+     "competitors": [
+      {
+       "homeAway": "home",
+       "score": "0",
+       "team": {
+        "id": "1",
+        "displayName": "Atlanta Falcons",
+        "shortDisplayName": "Falcons",
+        "abbreviation": "ATL",
+        "name": "Falcons"
+       }
+      },
+      {
+       "homeAway": "away",
+       "score": "0",
+       "team": {
+        "id": "4",
+        "displayName": "Cincinnati Bengals",
+        "shortDisplayName": "Bengals",
+        "abbreviation": "CIN",
+        "name": "Bengals"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "401873040",
+   "date": "2026-11-08T18:00Z",
+   "name": "Dallas Cowboys at Indianapolis Colts",
+   "shortName": "DAL @ IND",
+   "status": {
+    "type": {
+     "state": "pre",
+     "completed": false,
+     "shortDetail": "11/8 - 1:00 PM EST"
+    },
+    "displayClock": "0:00",
+    "period": 0
+   },
+   "competitions": [
+    {
+     "competitors": [
+      {
+       "homeAway": "home",
+       "score": "0",
+       "team": {
+        "id": "11",
+        "displayName": "Indianapolis Colts",
+        "shortDisplayName": "Colts",
+        "abbreviation": "IND",
+        "name": "Colts"
+       }
+      },
+      {
+       "homeAway": "away",
+       "score": "0",
+       "team": {
+        "id": "6",
+        "displayName": "Dallas Cowboys",
+        "shortDisplayName": "Cowboys",
+        "abbreviation": "DAL",
+        "name": "Cowboys"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "401873045",
+   "date": "2026-11-08T18:00Z",
+   "name": "New York Jets at Kansas City Chiefs",
+   "shortName": "NYJ @ KC",
+   "status": {
+    "type": {
+     "state": "pre",
+     "completed": false,
+     "shortDetail": "11/8 - 1:00 PM EST"
+    },
+    "displayClock": "0:00",
+    "period": 0
+   },
+   "competitions": [
+    {
+     "competitors": [
+      {
+       "homeAway": "home",
+       "score": "0",
+       "team": {
+        "id": "12",
+        "displayName": "Kansas City Chiefs",
+        "shortDisplayName": "Chiefs",
+        "abbreviation": "KC",
+        "name": "Chiefs"
+       }
+      },
+      {
+       "homeAway": "away",
+       "score": "0",
+       "team": {
+        "id": "20",
+        "displayName": "New York Jets",
+        "shortDisplayName": "Jets",
+        "abbreviation": "NYJ",
+        "name": "Jets"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "401873042",
+   "date": "2026-11-08T18:00Z",
+   "name": "Detroit Lions at Miami Dolphins",
+   "shortName": "DET @ MIA",
+   "status": {
+    "type": {
+     "state": "pre",
+     "completed": false,
+     "shortDetail": "11/8 - 1:00 PM EST"
+    },
+    "displayClock": "0:00",
+    "period": 0
+   },
+   "competitions": [
+    {
+     "competitors": [
+      {
+       "homeAway": "home",
+       "score": "0",
+       "team": {
+        "id": "15",
+        "displayName": "Miami Dolphins",
+        "shortDisplayName": "Dolphins",
+        "abbreviation": "MIA",
+        "name": "Dolphins"
+       }
+      },
+      {
+       "homeAway": "away",
+       "score": "0",
+       "team": {
+        "id": "8",
+        "displayName": "Detroit Lions",
+        "shortDisplayName": "Lions",
+        "abbreviation": "DET",
+        "name": "Lions"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "401873039",
+   "date": "2026-11-08T18:00Z",
+   "name": "Cleveland Browns at New Orleans Saints",
+   "shortName": "CLE @ NO",
+   "status": {
+    "type": {
+     "state": "pre",
+     "completed": false,
+     "shortDetail": "11/8 - 1:00 PM EST"
+    },
+    "displayClock": "0:00",
+    "period": 0
+   },
+   "competitions": [
+    {
+     "competitors": [
+      {
+       "homeAway": "home",
+       "score": "0",
+       "team": {
+        "id": "18",
+        "displayName": "New Orleans Saints",
+        "shortDisplayName": "Saints",
+        "abbreviation": "NO",
+        "name": "Saints"
+       }
+      },
+      {
+       "homeAway": "away",
+       "score": "0",
+       "team": {
+        "id": "5",
+        "displayName": "Cleveland Browns",
+        "shortDisplayName": "Browns",
+        "abbreviation": "CLE",
+        "name": "Browns"
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

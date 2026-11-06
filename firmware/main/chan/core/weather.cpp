@@ -8,14 +8,14 @@ namespace chan {
 
 const char* ipwho_url()
 {
-    return "https://ipwho.is/?fields=success,city,latitude,longitude,timezone";
+    return "http://ipwho.is/?fields=success,city,latitude,longitude,timezone";
 }
 
 std::string open_meteo_url(double lat, double lon, const std::string& units)
 {
     char buf[256];
     snprintf(buf, sizeof(buf),
-             "https://api.open-meteo.com/v1/forecast?latitude=%.4g&longitude=%.4g"
+             "http://api.open-meteo.com/v1/forecast?latitude=%.4g&longitude=%.4g"
              "&current=temperature_2m,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min"
              "&timezone=auto&forecast_days=1",
              lat, lon);
@@ -28,6 +28,18 @@ std::optional<Location> parse_ipwho(std::string_view json)
 {
     JsonDocument doc;
     if (deserializeJson(doc, json.data(), json.size()) != DeserializationError::Ok) return std::nullopt;
+    return parse_ipwho(doc.as<JsonVariantConst>());
+}
+
+std::optional<Weather> parse_open_meteo(std::string_view json)
+{
+    JsonDocument doc;
+    if (deserializeJson(doc, json.data(), json.size()) != DeserializationError::Ok) return std::nullopt;
+    return parse_open_meteo(doc.as<JsonVariantConst>());
+}
+
+std::optional<Location> parse_ipwho(JsonVariantConst doc)
+{
     if (!doc["success"].as<bool>()) return std::nullopt;
     if (!doc["latitude"].is<double>() || !doc["longitude"].is<double>()) return std::nullopt;
     Location loc;
@@ -40,10 +52,8 @@ std::optional<Location> parse_ipwho(std::string_view json)
     return loc;
 }
 
-std::optional<Weather> parse_open_meteo(std::string_view json)
+std::optional<Weather> parse_open_meteo(JsonVariantConst doc)
 {
-    JsonDocument doc;
-    if (deserializeJson(doc, json.data(), json.size()) != DeserializationError::Ok) return std::nullopt;
     JsonObjectConst cur = doc["current"].as<JsonObjectConst>();
     if (cur.isNull() || !cur["temperature_2m"].is<double>()) return std::nullopt;
     Weather w;

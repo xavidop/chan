@@ -12,7 +12,7 @@
 
 namespace chan::platform {
 
-enum class Screen { Face, Agents, Sports, Settings };
+enum class Screen { Face, Agents, Sports, Weather, Settings };
 
 class Shell {
 public:
@@ -31,6 +31,8 @@ public:
     // Milliseconds (HAL clock) of the last horizontal swipe; used to swallow the
     // click LVGL may also report for the same touch.
     uint32_t last_gesture_ms() const { return _last_gesture_ms; }
+    // Holding the screen for 2 s opens Settings; the release click that follows must be ignored.
+    uint32_t last_long_press_ms() const { return _last_long_press_ms; }
 
     // show(Settings) only records the request: NVS writes are not allowed from the LVGL
     // task (its stack lives in PSRAM). ChanApp::tick() consumes it and reboots.
@@ -39,17 +41,23 @@ public:
     // Overlay roots for later tasks to draw into (nullptr before init()).
     lv_obj_t* agents_root() const { return _agents; }
     lv_obj_t* sports_root() const { return _sports; }
+    lv_obj_t* weather_root() const { return _weather; }
 
 private:
     lv_obj_t* make_overlay(lv_obj_t* parent, const char* title, const char* hint);
     void set_visible(lv_obj_t* obj, bool visible);
     static void gesture_cb(lv_event_t* e);
     static void click_cb(lv_event_t* e);
+    static void press_cb(lv_event_t* e);
+    uint32_t _press_started_ms = 0;
+    bool _long_press_fired = false;
+    uint32_t _last_long_press_ms = 0;
 
-    std::vector<Screen> _order;  // Face first; Agents/Sports only when enabled; Settings last
+    std::vector<Screen> _order;  // Face first; Agents/Sports/Weather when enabled (Settings: long press)
     Screen _current = Screen::Face;
     lv_obj_t* _agents = nullptr;
     lv_obj_t* _sports = nullptr;
+    lv_obj_t* _weather = nullptr;
     uint32_t _last_gesture_ms = 0;
     bool _settings_requested = false;
 };

@@ -1,0 +1,91 @@
+{
+ "dates": [
+  {
+   "date": "2026-09-25",
+   "games": [
+    {
+     "gamePk": 822760,
+     "gameDate": "2026-09-25T23:07:00Z",
+     "status": {
+      "abstractGameState": "Final",
+      "detailedState": "Final"
+     },
+     "teams": {
+      "home": {
+       "score": 6,
+       "team": {
+        "id": 141,
+        "name": "Toronto Blue Jays"
+       }
+      },
+      "away": {
+       "score": 5,
+       "team": {
+        "id": 113,
+        "name": "Cincinnati Reds"
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "date": "2026-09-26",
+   "games": [
+    {
+     "gamePk": 822759,
+     "gameDate": "2026-09-26T19:07:00Z",
+     "status": {
+      "abstractGameState": "Final",
+      "detailedState": "Final"
+     },
+     "teams": {
+      "home": {
+       "score": 1,
+       "team": {
+        "id": 141,
+        "name": "Toronto Blue Jays"
+       }
+      },
+      "away": {
+       "score": 5,
+       "team": {
+        "id": 113,
+        "name": "Cincinnati Reds"
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "date": "2026-09-27",
+   "games": [
+    {
+     "gamePk": 822761,
+     "gameDate": "2026-09-27T19:07:00Z",
+     "status": {
+      "abstractGameState": "Final",
+      "detailedState": "Final"
+     },
+     "teams": {
+      "home": {
+       "score": 5,
+       "team": {
+        "id": 141,
+        "name": "Toronto Blue Jays"
+       }
+      },
+      "away": {
+       "score": 1,
+       "team": {
+        "id": 113,
+        "name": "Cincinnati Reds"
+       }
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

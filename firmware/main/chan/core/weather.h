@@ -1,6 +1,8 @@
 // Location (from the public IP) and current weather (Open-Meteo). Pure C++17, host-tested.
 #pragma once
 
+#include <ArduinoJson.h>
+
 #include <optional>
 #include <string>
 #include <string_view>
@@ -22,11 +24,13 @@ struct Weather {
 
 enum class WeatherIcon { Clear, PartlyCloudy, Cloudy, Fog, Drizzle, Rain, Snow, Storm };
 
-const char* ipwho_url();  // https://ipwho.is/?fields=success,city,latitude,longitude,timezone
+const char* ipwho_url();  // http://ipwho.is/?fields=… (plain HTTP on purpose: public data, TLS RAM is reserved for Gemini)
 std::string open_meteo_url(double lat, double lon, const std::string& units);  // units: "metric" | "imperial"
 
 std::optional<Location> parse_ipwho(std::string_view json);
 std::optional<Weather> parse_open_meteo(std::string_view json);
+std::optional<Location> parse_ipwho(JsonVariantConst root);
+std::optional<Weather> parse_open_meteo(JsonVariantConst root);
 
 WeatherIcon icon_for_code(int wmo_code);
 const char* condition_name(WeatherIcon icon);  // "clear", "partly cloudy", …

@@ -1,0 +1,125 @@
+{
+ "dates": [
+  {
+   "date": "2026-07-04",
+   "games": [
+    {
+     "gamePk": 822716,
+     "gameDate": "2026-07-04T15:05:00Z",
+     "status": {
+      "abstractGameState": "Final",
+      "detailedState": "Final"
+     },
+     "teams": {
+      "home": {
+       "score": 1,
+       "team": {
+        "id": 120,
+        "name": "Washington Nationals"
+       }
+      },
+      "away": {
+       "score": 7,
+       "team": {
+        "id": 134,
+        "name": "Pittsburgh Pirates"
+       }
+      }
+     },
+     "linescore": {
+      "currentInning": 9,
+      "inningState": "Bottom",
+      "inningHalf": "Bottom"
+     }
+    },
+    {
+     "gamePk": 823526,
+     "gameDate": "2026-07-04T17:35:00Z",
+     "status": {
+      "abstractGameState": "Final",
+      "detailedState": "Final"
+     },
+     "teams": {
+      "home": {
+       "score": 4,
+       "team": {
+        "id": 147,
+        "name": "New York Yankees"
+       }
+      },
+      "away": {
+       "score": 11,
+       "team": {
+        "id": 142,
+        "name": "Minnesota Twins"
+       }
+      }
+     },
+     "linescore": {
+      "currentInning": 9,
+      "inningState": "Bottom",
+      "inningHalf": "Bottom"
+     }
+    },
+    {
+     "gamePk": 822882,
+     "gameDate": "2026-07-04T20:05:00Z",
+     "status": {
+      "abstractGameState": "Final",
+      "detailedState": "Final"
+     },
+     "teams": {
+      "home": {
+       "score": 0,
+       "team": {
+        "id": 140,
+        "name": "Texas Rangers"
+       }
+      },
+      "away": {
+       "score": 3,
+       "team": {
+        "id": 116,
+        "name": "Detroit Tigers"
+       }
+      }
+     },
+     "linescore": {
+      "currentInning": 9,
+      "inningState": "Bottom",
+      "inningHalf": "Bottom"
+     }
+    },
+    {
+     "gamePk": 823118,
+     "gameDate": "2026-07-04T20:10:00Z",
+     "status": {
+      "abstractGameState": "Final",
+      "detailedState": "Final"
+     },
+     "teams": {
+      "home": {
+       "score": 11,
+       "team": {
+        "id": 136,
+        "name": "Seattle Mariners"
+       }
+      },
+      "away": {
+       "score": 0,
+       "team": {
+        "id": 141,
+        "name": "Toronto Blue Jays"
+       }
+      }
+     },
+     "linescore": {
+      "currentInning": 9,
+      "inningState": "Top",
+      "inningHalf": "Top"
+     }
+    }
+   ]
+  }
+ ]
+}

@@ -42,6 +42,7 @@
     { "key": "bluejays",  "league": "mlb",          "name": "Toronto Blue Jays", "displayName": "Blue Jays",           "color": "#134A8E", "altColor": "#E8291C" },
     { "key": "tfc",       "league": "usa.1",        "name": "Toronto FC",        "displayName": "Toronto FC",          "color": "#B81137", "altColor": "#455560" },
     { "key": "raptors",   "league": "nba",          "name": "Toronto Raptors",   "displayName": "Raptors",             "color": "#CE1141", "altColor": "#1A1A1A" },
+    { "key": "leafs",     "league": "nhl",          "name": "Toronto Maple Leafs","displayName": "Maple Leafs",        "color": "#00205B", "altColor": "#FFFFFF" },
     { "key": "spain",     "league": "uefa.nations", "name": "España",            "displayName": "Selección Española",  "color": "#C60B1E", "altColor": "#FFC400" }
   ]
 }
