@@ -1,5 +1,5 @@
 diff --git a/main/application.cc b/main/application.cc
-index 31de205..71805a6 100644
+index 31de205..02c4d74 100644
 --- a/main/application.cc
 +++ b/main/application.cc
 @@ -1,4 +1,6 @@
@@ -72,7 +72,7 @@ index 31de205..71805a6 100644
          }
  
          // This will block the loop until the activation is done or timeout
-@@ -535,14 +543,14 @@ void Application::InitializeProtocol() {
+@@ -535,14 +543,15 @@ void Application::InitializeProtocol() {
  
      display->SetStatus(Lang::Strings::LOADING_PROTOCOL);
  
@@ -90,12 +90,13 @@ index 31de205..71805a6 100644
 +        return chan::platform::ChanApp::get().handleToolCall(call);
 +    };
 +    gemini->on_output_level = [](float level) { chan::platform::ChanApp::get().setOutputLevel(level); };
++    chan::platform::ChanApp::get().setGeminiProtocol(gemini.get());
 +    protocol_ = std::move(gemini);
 +    audio_service_.SetRawPcmWire(protocol_->audio_wire() == AudioWire::Pcm16);
  
      protocol_->OnConnected([this]() { DismissAlert(); });
  
-@@ -553,7 +561,8 @@ void Application::InitializeProtocol() {
+@@ -553,7 +562,8 @@ void Application::InitializeProtocol() {
  
      protocol_->OnIncomingAudio([this](std::unique_ptr<AudioStreamPacket> packet) {
          if (GetDeviceState() == kDeviceStateSpeaking) {
@@ -105,7 +106,7 @@ index 31de205..71805a6 100644
          }
      });
  
-@@ -725,30 +734,6 @@ void Application::InitializeProtocol() {
+@@ -725,30 +735,6 @@ void Application::InitializeProtocol() {
      protocol_->Start();
  }
  
@@ -136,7 +137,7 @@ index 31de205..71805a6 100644
  void Application::Alert(const char* status, const char* message, const char* emotion,
                          const std::string_view& sound) {
      ESP_LOGW(TAG, "Alert [%s] %s: %s", emotion, status, message);
-@@ -833,6 +818,7 @@ void Application::ContinueOpenAudioChannel(ListeningMode mode) {
+@@ -833,6 +819,7 @@ void Application::ContinueOpenAudioChannel(ListeningMode mode) {
          if (!protocol_->OpenAudioChannel()) {
              // Return to idle so the device is not stuck in the connecting
              // state (not every failure path reports a network error)
@@ -144,7 +145,7 @@ index 31de205..71805a6 100644
              SetDeviceState(kDeviceStateIdle);
              return;
          }
-@@ -970,6 +956,7 @@ void Application::ContinueWakeWordInvoke(const std::string& wake_word) {
+@@ -970,6 +957,7 @@ void Application::ContinueWakeWordInvoke(const std::string& wake_word) {
              // Return to idle so the device is not stuck in the connecting
              // state (not every failure path reports a network error), and
              // wake word detection is re-enabled by the idle state handler.
@@ -152,7 +153,7 @@ index 31de205..71805a6 100644
              SetDeviceState(kDeviceStateIdle);
              return;
          }
-@@ -1051,7 +1038,11 @@ void Application::HandleStateChangedEvent() {
+@@ -1051,7 +1039,11 @@ void Application::HandleStateChangedEvent() {
                  // Only AFE wake word can be detected in speaking mode
                  audio_service_.EnableWakeWordDetection(audio_service_.IsAfeWakeWord());
              }
@@ -235,10 +236,20 @@ index 7f7582b..d51b194 100644
                  esp_audio_enc_in_frame_t in = {
                      .buffer = (uint8_t*)(task.pcm.data()),
 diff --git a/main/audio/audio_service.h b/main/audio/audio_service.h
-index f8b510f..966f9a5 100644
+index f8b510f..4b7840a 100644
 --- a/main/audio/audio_service.h
 +++ b/main/audio/audio_service.h
-@@ -147,9 +147,14 @@ public:
+@@ -38,7 +38,8 @@
+  */
+ 
+ #define OPUS_FRAME_DURATION_MS 60
+-#define MAX_ENCODE_TASKS_IN_QUEUE 2
++// Chan: raw PCM uplink is ~10x bulkier than Opus, so give the main task more slack.
++#define MAX_ENCODE_TASKS_IN_QUEUE 8
+ #define MAX_PLAYBACK_TASKS_IN_QUEUE 2
+ #define MAX_DECODE_PACKETS_IN_QUEUE (1200 / OPUS_FRAME_DURATION_MS)
+ #define MAX_SEND_PACKETS_IN_QUEUE (2400 / OPUS_FRAME_DURATION_MS)
+@@ -147,9 +148,14 @@ public:
      bool ReadAudioData(std::vector<int16_t>& data, int sample_rate, int samples);
      void ResetDecoder();
      void SetModelsList(srmodel_list_t* models_list);

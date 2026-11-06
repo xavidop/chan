@@ -1,7 +1,10 @@
 #include "chan_app.h"
 
 #include <chan/core/quiet_hours.h>
+#include <chan/platform/camera_tool.h>
 #include <chan/platform/debug_console.h>
+#include <chan/platform/gemini_protocol.h>
+#include <stackchan/stackchan.h>
 #include <chan/platform/expressions.h>
 #include <chan/platform/leds.h>
 #include <chan/platform/sounds.h>
@@ -11,6 +14,7 @@
 #include <ssid_manager.h>
 #include <wifi_manager.h>
 
+#include <algorithm>
 #include <ctime>
 
 namespace chan::platform {
@@ -42,6 +46,13 @@ void ChanApp::init(const ChanConfig& cfg)
     _config     = cfg;
     _has_config = true;
     provision_wifi();
+    register_tools();
+}
+
+void ChanApp::setMood(Expression e, uint32_t hold_ms)
+{
+    _mood = e;
+    _mood_until_ms = GetHAL().millis() + hold_ms;
 }
 
 void ChanApp::provision_wifi()
@@ -126,7 +137,14 @@ bool ChanApp::isQuiet() const
 void ChanApp::apply_attention(uint32_t now_ms)
 {
     const bool quiet = isQuiet();
-    const Output out = _attention.output(now_ms, quiet);
+    Output out = _attention.output(now_ms, quiet);
+    if (_mood_until_ms != 0) {
+        if (static_cast<int32_t>(now_ms - _mood_until_ms) >= 0) {
+            _mood_until_ms = 0;
+        } else if (out.face == Expression::Neutral || out.face == Expression::Attentive || out.face == Expression::Talking) {
+            out.face = _mood;
+        }
+    }
     const float level = out.led == LedPattern::VoiceLevel ? _voice_level : -1.0f;
     leds_apply(out, now_ms, level);
     if (_voice_level > 0) _voice_level *= 0.85f;  // decay between chunks
@@ -211,14 +229,91 @@ GeminiSetup ChanApp::buildGeminiSetup() const
     s.language = _config.language;
     s.system_prompt = build_system_prompt(_config);
     s.google_search = true;
-    // Function declarations are added by the tool registry (Task 6).
+    s.functions = _tools.declarations();
     return s;
 }
 
 std::string ChanApp::handleToolCall(const ServerMsg::Call& call)
 {
-    mclog::tagWarn(kTag, "tool call without a registry: {}", call.name);
-    return R"({"error":"unknown tool"})";
+    std::string result = _tools.dispatch(call.name, call.args_json);
+    mclog::tagInfo(kTag, "tool {} -> {}", call.name, result.substr(0, 120));
+    return result;
+}
+
+namespace {
+const char* kNoParams = R"({"type":"OBJECT","properties":{}})";
+
+Expression expression_from_name(const std::string& n)
+{
+    if (n == "happy") return Expression::Happy;
+    if (n == "worried" || n == "sad") return Expression::Worried;
+    if (n == "thinking" || n == "curious") return Expression::Thinking;
+    if (n == "sulky" || n == "angry") return Expression::Sulky;
+    if (n == "confused") return Expression::Confused;
+    if (n == "attentive") return Expression::Attentive;
+    return Expression::Neutral;
+}
+}  // namespace
+
+void ChanApp::register_tools()
+{
+    _tools.add({"take_photo", "Take a photo with your camera and attach it to the conversation so you can SEE what is in front of you. Use it when the user asks what you see, what they are holding or showing you, or to read something. This does not move your head.", kNoParams},
+               [this](const std::string&) -> std::string {
+                   std::vector<uint8_t> jpeg;
+                   std::string err;
+                   if (!camera_capture_jpeg(jpeg, err, 90)) return error_json(err);
+                   if (!_gemini || !_gemini->SendImage(jpeg.data(), jpeg.size())) return error_json("could not send the image");
+                   return R"({"ok":true,"note":"the photo is attached as an image in this conversation"})";
+               });
+    _tools.add({"turn_head", "Physically turn your head (look left/right/up/down, face someone, nod). yaw: -90 (your left) to 90 (your right), 0 = straight ahead. pitch: -20 (down) to 60 (up), 0 = level. Keep within ±45 for natural looks. This does not take a photo.",
+                R"({"type":"OBJECT","properties":{"yaw":{"type":"INTEGER"},"pitch":{"type":"INTEGER"}}})"},
+               [](const std::string& args) -> std::string {
+                   const int yaw = arg_int(args, "yaw", -9999);
+                   const int pitch = arg_int(args, "pitch", -9999);
+                   LvglLockGuard lock;
+                   auto& motion = GetStackChan().motion();
+                   if (yaw != -9999) motion.yawServo().moveWithSpeed(std::max(-90, std::min(90, yaw)) * 10, 200);
+                   if (pitch != -9999) motion.pitchServo().moveWithSpeed(std::max(-20, std::min(60, pitch)) * 10, 200);
+                   return R"({"ok":true})";
+               });
+    _tools.add({"get_head_angles", "Where your head is pointing right now (yaw, pitch in degrees).", kNoParams},
+               [](const std::string&) -> std::string {
+                   LvglLockGuard lock;
+                   auto& motion = GetStackChan().motion();
+                   return fmt::format(R"({{"yaw":{},"pitch":{}}})", motion.yawServo().getCurrentAngle() / 10,
+                                      motion.pitchServo().getCurrentAngle() / 10);
+               });
+    _tools.add({"set_expression", "Show an emotion on your face for a few seconds. expression: happy, worried, thinking, sulky, confused, attentive or neutral.",
+                R"({"type":"OBJECT","properties":{"expression":{"type":"STRING"},"seconds":{"type":"INTEGER"}}})"},
+               [this](const std::string& args) -> std::string {
+                   const int seconds = std::max(1, std::min(60, arg_int(args, "seconds", 8)));
+                   setMood(expression_from_name(arg_string(args, "expression", "neutral")), static_cast<uint32_t>(seconds) * 1000);
+                   return R"({"ok":true})";
+               });
+    _tools.add({"dance", "Do a short happy dance (a few seconds). Use when the user asks you to dance or celebrate.", kNoParams},
+               [this](const std::string&) -> std::string {
+                   LvglLockGuard lock;
+                   expressions_dance();
+                   setMood(Expression::Happy, 6000);
+                   return R"({"ok":true})";
+               });
+    _tools.add({"show_screen", "Switch what the screen shows. screen: face, agents (coding agents status) or sports (live scores).",
+                R"({"type":"OBJECT","properties":{"screen":{"type":"STRING"}}})"},
+               [this](const std::string& args) -> std::string {
+                   const std::string which = arg_string(args, "screen", "face");
+                   LvglLockGuard lock;
+                   if (which == "agents") _shell.show(Screen::Agents);
+                   else if (which == "sports") _shell.show(Screen::Sports);
+                   else _shell.show(Screen::Face);
+                   return R"({"ok":true})";
+               });
+    // Data tools: filled in by the agents, sports and weather features; empty until then.
+    _tools.add({"get_agent_status", "Status of the owner's coding agents (Claude Code, Codex, Gemini CLI): which are working, done, or need attention.", kNoParams},
+               [](const std::string&) -> std::string { return R"({"agents":[]})"; });
+    _tools.add({"get_scores", "Live and upcoming games for the owner's followed teams.", kNoParams},
+               [](const std::string&) -> std::string { return R"({"games":[]})"; });
+    _tools.add({"get_weather", "Current local weather and time at the owner's location.", kNoParams},
+               [](const std::string&) -> std::string { return R"({"available":false})"; });
 }
 
 void ChanApp::handle_debug_line(std::string_view line)
@@ -231,7 +326,7 @@ void ChanApp::handle_debug_line(std::string_view line)
     };
     mclog::tagInfo(kTag, "debug: {}", line);
     if (line == "help") {
-        mclog::tagInfo(kTag, "commands: attn <offline|listening|thinking|speaking|agent|celebrate|horn|sulk|clear|ack>, quiet <on|off|auto>, screen <face|agents|sports|settings>, talk");
+        mclog::tagInfo(kTag, "commands: attn <offline|listening|thinking|speaking|agent|celebrate|horn|sulk|clear|ack>, quiet <on|off|auto>, screen <face|agents|sports|settings>, talk, look");
         return;
     }
     if (starts("attn ")) {
@@ -256,6 +351,13 @@ void ChanApp::handle_debug_line(std::string_view line)
         std::string_view a = arg("quiet ");
         _quiet_override = a == "on" ? 1 : a == "off" ? 0 : -1;
         mclog::tagInfo(kTag, "quiet override = {} (now quiet: {})", _quiet_override, isQuiet());
+        return;
+    }
+    if (line == "look") {
+        std::vector<uint8_t> jpeg;
+        std::string err;
+        if (camera_capture_jpeg(jpeg, err)) mclog::tagInfo(kTag, "look: {} bytes jpeg", jpeg.size());
+        else mclog::tagWarn(kTag, "look failed: {}", err);
         return;
     }
     if (line == "talk") {

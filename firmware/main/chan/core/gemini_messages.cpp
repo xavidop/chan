@@ -215,8 +215,10 @@ std::string build_system_prompt(const ChanConfig& cfg)
     } else {
         p += "You may chat a little, but stay concise and warm. ";
     }
-    p += "When you need to see something, use the camera tool. When you need current facts, search the web. ";
-    p += "You can move your head, change your expression and dance with your tools; use them sparingly and playfully.";
+    p += "To see something (what the user holds or shows you, reading text), call take_photo. ";
+    p += "When asked to look left/right/up/down or to face someone, call turn_head (that moves your head, it is not a photo). ";
+    p += "When you need current facts, search the web. ";
+    p += "You can also change your expression, dance and switch screens with your tools; use them playfully but sparingly.";
     return p;
 }
 

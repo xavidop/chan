@@ -7,11 +7,14 @@
 #include <chan/core/attention.h>
 #include <chan/core/config.h>
 #include <chan/core/gemini_messages.h>
+#include <chan/core/tools.h>
 #include <chan/platform/screens/shell.h>
 
 #include <string_view>
 
 namespace chan::platform {
+
+class GeminiProtocol;
 
 // Warm-reboot target that boots into the stock Settings app instead of Chan.
 constexpr int kSettingsWarmBootTarget = 1;
@@ -52,6 +55,11 @@ public:
     std::string handleToolCall(const ServerMsg::Call& call);
     // Loudness of the reply being played (0..1), fed by the protocol, consumed by the LEDs.
     void setOutputLevel(float level) { _voice_level = level; }
+    // The live protocol instance (owned by the xiaozhi Application); used by the `look` tool.
+    void setGeminiProtocol(GeminiProtocol* p) { _gemini = p; }
+    ToolRegistry& tools() { return _tools; }
+    // A mood the model asked for (set_expression): shown while no stronger signal is active.
+    void setMood(Expression e, uint32_t hold_ms);
 
     Shell& shell() { return _shell; }
     Attention& attention() { return _attention; }
@@ -73,6 +81,11 @@ private:
     bool _net_online = true;
     int _quiet_override = -1;  // -1 auto, 0 force off, 1 force on (debug)
     float _voice_level = -1.0f;
+    ToolRegistry _tools;
+    GeminiProtocol* _gemini = nullptr;
+    Expression _mood = Expression::Neutral;
+    uint32_t _mood_until_ms = 0;
+    void register_tools();
 };
 
 }  // namespace chan::platform
