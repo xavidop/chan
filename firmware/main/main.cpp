@@ -25,6 +25,7 @@ extern "C" void app_main(void)
     // Chan config (from the chancfg partition; secrets are never logged)
     chan::ChanConfig cfg;
     std::string cfg_err;
+    mclog::tagInfo("Chan", "firmware v{}", FIRMWARE_VERSION);
     const bool cfg_ok = chan::platform::load_chan_config(cfg, cfg_err);
     if (cfg_ok) {
         mclog::tagInfo("Chan", "config ok: {}, {} teams", cfg.name, cfg.teams.size());

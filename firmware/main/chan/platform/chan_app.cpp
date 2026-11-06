@@ -132,7 +132,8 @@ void ChanApp::onXiaozhiReady()
     _face_overlay.init(lv_screen_active());
     _next_sports_poll_ms = GetHAL().millis() + 15000;  // let the audio engine finish allocating first
     // Stack in PSRAM: this task only does network I/O and parsing (never NVS/flash writes).
-    xTaskCreatePinnedToCoreWithCaps(net_task, "chan_net", 16384, this, 2, nullptr, 0, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    // Lowest priority: big feed downloads must never starve the UI, audio or I2C tasks.
+    xTaskCreatePinnedToCoreWithCaps(net_task, "chan_net", 16384, this, 1, nullptr, 0, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
 
     // Head panel: pat = acknowledge; swipe front-to-back = next screen, back = previous.
     // The capacitive head panel produces phantom presses and swipes, so: swipes are not used for
@@ -474,7 +475,7 @@ void ChanApp::net_loop()
     uint32_t next_attempt_ms = 0;
     while (true) {
         vTaskDelay(pdMS_TO_TICKS(2000));
-        if (!_net_online) continue;
+        if (!_net_online || _ota_in_progress) continue;
         const uint32_t now = GetHAL().millis();
         bool have_weather = false;
         {

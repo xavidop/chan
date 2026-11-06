@@ -81,6 +81,10 @@ public:
     std::string weatherJson();
     std::string localTimeHHMM() const;
 
+    // While a firmware upload runs, the network task stays quiet.
+    void setOtaInProgress(bool on) { _ota_in_progress = on; }
+    bool otaInProgress() const { return _ota_in_progress; }
+
     // Agent status (from the HTTP API; safe from any task).
     void onAgentEvent(const AgentEvent& event);
     std::string agentStatusJson();
@@ -128,6 +132,7 @@ private:
     bool _tz_applied = false;
     std::string _pending_tz;
     uint32_t _head_press_ms = 0;
+    volatile bool _ota_in_progress = false;
     bool _idle_face = true;
     uint32_t _last_clock_ms = 0;
     void poll_sports(uint32_t now_ms);

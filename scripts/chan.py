@@ -9,6 +9,7 @@ Usage:
   python3 scripts/chan.py restore-stock [--port PORT]  # write backup/stackchan-stock-16MB.bin
   python3 scripts/chan.py pack-config [--out FILE]     # .env + config.json -> chan-config.bin
   python3 scripts/chan.py flash-config [--port PORT]   # pack and write it to the `chancfg` partition
+  python3 scripts/chan.py ota [--host chan.local]      # push firmware/build/stack-chan.bin over Wi-Fi
 
 Everything shells out to the ESP-IDF tools, so run `. ~/esp/esp-idf/export.sh`
 first (see `setup`). No secrets are ever printed by this script.
@@ -209,6 +210,35 @@ def cmd_restore_stock(args: argparse.Namespace) -> None:
     print("Done. The robot should reboot into the stock Stack-chan firmware.")
 
 
+def cmd_ota(args: argparse.Namespace) -> None:
+    """Push firmware/build/stack-chan.bin to the robot over Wi-Fi (POST /api/ota, bearer token)."""
+    import urllib.error
+    import urllib.request
+
+    image = FIRMWARE / "build" / "stack-chan.bin"
+    if not image.is_file():
+        raise ChanError(f"{image} not found; run `python3 scripts/chan.py build` first.")
+    token = parse_dotenv(REPO / ".env").get("CHAN_AGENT_TOKEN", "")
+    if not token:
+        raise ChanError("CHAN_AGENT_TOKEN missing in .env")
+    data = image.read_bytes()
+    url = f"http://{args.host}/api/ota"
+    print(f"Uploading {len(data) / 1024:.0f} KB to {url} …")
+    req = urllib.request.Request(url, data=data, method="POST",
+                                 headers={"Content-Type": "application/octet-stream", "Authorization": f"Bearer {token}",
+                                          "Content-Length": str(len(data))})
+    try:
+        with urllib.request.urlopen(req, timeout=args.timeout) as resp:
+            body = resp.read().decode("utf-8", "replace")
+            print(f"Robot accepted the image ({resp.status}): {body.strip()}")
+            print("It is rebooting into the new firmware now; if it fails to boot, the bootloader rolls back.")
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", "replace").strip()
+        raise ChanError(f"robot refused the upload: HTTP {e.code} {detail}") from e
+    except (urllib.error.URLError, OSError) as e:
+        raise ChanError(f"could not reach the robot at {args.host}: {e}") from e
+
+
 def cmd_pack_config(args: argparse.Namespace) -> None:
     _write_config_image(pathlib.Path(args.out) if args.out else _default_config_out())
 
@@ -237,6 +267,10 @@ def main(argv: list[str] | None = None) -> int:
         p = sub.add_parser(name, help=help_)
         p.add_argument("--port", "-p", default=os.environ.get("CHAN_PORT"), help="serial port (or $CHAN_PORT)")
         p.set_defaults(fn=fn)
+    p = sub.add_parser("ota", help="push the built firmware to the robot over Wi-Fi")
+    p.add_argument("--host", default=os.environ.get("CHAN_HOST", "chan.local"), help="robot host[:port] (or $CHAN_HOST)")
+    p.add_argument("--timeout", type=float, default=180.0)
+    p.set_defaults(fn=cmd_ota)
     p = sub.add_parser("pack-config", help="pack .env + config.json into a chancfg partition image")
     p.add_argument("--out", help="output file (default firmware/build/chan-config.bin)")
     p.set_defaults(fn=cmd_pack_config)
