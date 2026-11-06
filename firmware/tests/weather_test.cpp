@@ -82,7 +82,7 @@ TEST_CASE("weather json for the model")
     JsonDocument doc;
     REQUIRE(deserializeJson(doc, weather_json(l, w, "metric", "14:05")) == DeserializationError::Ok);
     CHECK((doc["city"] == "Valencia"));
-    CHECK((doc["temperature"] == 18.3));
+    CHECK(doc["temperature"].as<double>() == doctest::Approx(18.3));
     CHECK((doc["unit"] == "C"));
     CHECK((doc["condition"] == "partly cloudy"));
     CHECK((doc["local_time"] == "14:05"));

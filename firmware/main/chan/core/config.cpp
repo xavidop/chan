@@ -15,6 +15,7 @@ const std::map<std::string, uint32_t> kDefaultAgentColors = {
     {"claude-code", 0xD97757},
     {"codex", 0x10A37F},
     {"gemini", 0x4285F4},
+    {"copilot", 0x8957E5},
 };
 
 std::string str_or(JsonVariantConst v, const std::string& fallback)

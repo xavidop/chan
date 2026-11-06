@@ -32,7 +32,8 @@
     "colors": {
       "claude-code": "#D97757",
       "codex": "#10A37F",
-      "gemini": "#4285F4"
+      "gemini": "#4285F4",
+      "copilot": "#8957E5"
     }
   },
 

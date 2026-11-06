@@ -49,6 +49,7 @@ TEST_CASE("defaults when optional keys missing")
     CHECK(cfg.chattiness == 1);
     CHECK(cfg.teams.empty());
     CHECK(cfg.agent_colors.at("gemini") == 0x4285F4);
+    CHECK(cfg.agent_colors.at("copilot") == 0x8957E5);
     CHECK(cfg.screen_agents);
     CHECK(cfg.screen_weather);
 }

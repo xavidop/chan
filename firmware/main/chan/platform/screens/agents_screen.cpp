@@ -36,6 +36,7 @@ std::string pretty_agent(const std::string& agent)
     if (agent == "claude-code") return "Claude Code";
     if (agent == "codex") return "Codex";
     if (agent == "gemini") return "Gemini CLI";
+    if (agent == "copilot") return "Copilot";
     return agent;
 }
 }  // namespace

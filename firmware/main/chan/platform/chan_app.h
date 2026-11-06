@@ -9,10 +9,14 @@
 #include <chan/core/config.h>
 #include <chan/core/gemini_messages.h>
 #include <chan/core/tools.h>
+#include <chan/core/weather.h>
 #include <chan/platform/screens/agents_screen.h>
+#include <chan/platform/screens/face_overlay.h>
 #include <chan/platform/screens/shell.h>
 
 #include <memory>
+#include <mutex>
+#include <optional>
 
 #include <string_view>
 
@@ -65,6 +69,10 @@ public:
     // A mood the model asked for (set_expression): shown while no stronger signal is active.
     void setMood(Expression e, uint32_t hold_ms);
 
+    // Weather/location (filled by the network task; safe from any task).
+    std::string weatherJson();
+    std::string localTimeHHMM() const;
+
     // Agent status (from the HTTP API; safe from any task).
     void onAgentEvent(const AgentEvent& event);
     std::string agentStatusJson();
@@ -100,6 +108,18 @@ private:
     bool _agents_dirty = true;
     uint32_t _agents_rendered_ms = 0;
     bool _http_started = false;
+    static void net_task(void* arg);
+    void net_loop();
+    void apply_timezone(const std::string& iana_or_posix);
+    FaceOverlay _face_overlay;
+    mutable std::mutex _wx_mutex;
+    std::optional<Location> _loc;
+    std::optional<Weather> _weather;
+    uint32_t _weather_fetched_ms = 0;
+    bool _weather_dirty = false;
+    bool _tz_applied = false;
+    bool _idle_face = true;
+    uint32_t _last_clock_ms = 0;
 };
 
 }  // namespace chan::platform

@@ -4,6 +4,7 @@
 #include <chan/platform/camera_tool.h>
 #include <chan/platform/debug_console.h>
 #include <chan/platform/gemini_protocol.h>
+#include <chan/platform/http_fetch.h>
 #include <chan/platform/http_server.h>
 #include <stackchan/stackchan.h>
 #include <chan/platform/expressions.h>
@@ -14,6 +15,9 @@
 #include <mooncake_log.h>
 #include <ssid_manager.h>
 #include <wifi_manager.h>
+
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 #include <algorithm>
 #include <ctime>
@@ -47,6 +51,10 @@ void ChanApp::init(const ChanConfig& cfg)
     _config     = cfg;
     _has_config = true;
     provision_wifi();
+    if (_config.timezone != "auto" && !_config.timezone.empty()) {
+        apply_timezone(_config.timezone);
+        _tz_applied = true;
+    }
     _agents = std::make_unique<AgentStore>(cfg.agents_max_sessions, static_cast<uint32_t>(cfg.agents_stale_min) * 60000u,
                                            static_cast<uint32_t>(cfg.agents_renudge_min) * 60000u);
     register_tools();
@@ -116,6 +124,8 @@ void ChanApp::onXiaozhiReady()
     _shell.init(lv_screen_active(), _config);
     _shell.on_tap = [this]() { onTap(); };
     if (_shell.agents_root()) _agents_screen.init(_shell.agents_root());
+    _face_overlay.init(lv_screen_active());
+    xTaskCreatePinnedToCore(net_task, "chan_net", 12288, this, 2, nullptr, 0);
 
     // Head panel: pat = acknowledge; swipe front-to-back = next screen, back = previous.
     GetHAL().onHeadPetGesture.connect([this](HeadPetGesture g) {
@@ -159,6 +169,20 @@ void ChanApp::tick()
         expressions_face_user();
     }
     refresh_agents_screen(now, false);
+    if (now - _last_clock_ms >= 1000) {
+        _last_clock_ms = now;
+        _face_overlay.set_time(localTimeHHMM());
+        bool dirty = false;
+        std::optional<Weather> w;
+        {
+            std::lock_guard<std::mutex> lock(_wx_mutex);
+            dirty = _weather_dirty;
+            _weather_dirty = false;
+            w = _weather;
+        }
+        if (dirty) _face_overlay.set_weather(w, _config.units);
+    }
+    _face_overlay.set_visible(_config.screen_weather && _shell.current() == Screen::Face && _idle_face);
     if (now - _last_attention_ms >= kAttentionPeriodMs) {
         _last_attention_ms = now;
         apply_attention(now);
@@ -199,6 +223,7 @@ void ChanApp::apply_attention(uint32_t now_ms)
             out.face = _mood;
         }
     }
+    _idle_face = out.face == Expression::Neutral;
     const float level = out.led == LedPattern::VoiceLevel ? _voice_level : -1.0f;
     leds_apply(out, now_ms, level);
     if (_voice_level > 0) _voice_level *= 0.85f;  // decay between chunks
@@ -375,8 +400,118 @@ void ChanApp::register_tools()
                [this](const std::string&) -> std::string { return agentStatusJson(); });
     _tools.add({"get_scores", "Live and upcoming games for the owner's followed teams.", kNoParams},
                [](const std::string&) -> std::string { return R"({"games":[]})"; });
-    _tools.add({"get_weather", "Current local weather and time at the owner's location.", kNoParams},
-               [](const std::string&) -> std::string { return R"({"available":false})"; });
+    _tools.add({"get_weather", "Current local weather, today's high/low and the local time at the owner's location.", kNoParams},
+               [this](const std::string&) -> std::string { return weatherJson(); });
+}
+
+void ChanApp::apply_timezone(const std::string& iana_or_posix)
+{
+    const std::string posix = iana_or_posix.find('/') != std::string::npos ? posix_tz_for(iana_or_posix) : iana_or_posix;
+    GetHAL().setTimezone(posix);
+    mclog::tagInfo(kTag, "timezone {} -> {}", iana_or_posix, posix);
+}
+
+std::string ChanApp::localTimeHHMM() const
+{
+    time_t now = time(nullptr);
+    struct tm tm_now;
+    localtime_r(&now, &tm_now);
+    if (tm_now.tm_year + 1900 < 2020) return "--:--";
+    char buf[8];
+    snprintf(buf, sizeof(buf), "%02d:%02d", tm_now.tm_hour, tm_now.tm_min);
+    return buf;
+}
+
+std::string ChanApp::weatherJson()
+{
+    std::optional<Location> loc;
+    std::optional<Weather> w;
+    {
+        std::lock_guard<std::mutex> lock(_wx_mutex);
+        loc = _loc;
+        w = _weather;
+    }
+    if (!loc || !w) return R"({"available":false,"reason":"weather not fetched yet"})";
+    return weather_json(*loc, *w, _config.units, localTimeHHMM());
+}
+
+void ChanApp::net_task(void* arg)
+{
+    static_cast<ChanApp*>(arg)->net_loop();
+    vTaskDelete(nullptr);
+}
+
+void ChanApp::net_loop()
+{
+    constexpr uint32_t kWeatherPeriodMs = 15 * 60 * 1000;
+    constexpr uint32_t kRetryMs = 60 * 1000;
+    uint32_t next_attempt_ms = 0;
+    while (true) {
+        vTaskDelay(pdMS_TO_TICKS(2000));
+        if (!_net_online) continue;
+        const uint32_t now = GetHAL().millis();
+        if (static_cast<int32_t>(now - next_attempt_ms) < 0) continue;
+
+        std::optional<Location> loc;
+        {
+            std::lock_guard<std::mutex> lock(_wx_mutex);
+            loc = _loc;
+        }
+        if (!loc) {
+            JsonDocument doc;
+            std::string err;
+            if (!http_get_json(ipwho_url(), doc, nullptr, err, 16 * 1024)) {
+                mclog::tagWarn(kTag, "location lookup failed: {}", err);
+                next_attempt_ms = now + kRetryMs;
+                continue;
+            }
+            std::string json;
+            serializeJson(doc, json);
+            loc = parse_ipwho(json);
+            if (!loc) {
+                mclog::tagWarn(kTag, "location response not usable");
+                next_attempt_ms = now + kRetryMs;
+                continue;
+            }
+            mclog::tagInfo(kTag, "location: {} ({})", loc->city, loc->timezone);
+            {
+                std::lock_guard<std::mutex> lock(_wx_mutex);
+                _loc = loc;
+            }
+            if (!_tz_applied && !loc->timezone.empty()) {
+                apply_timezone(loc->timezone);
+                _tz_applied = true;
+            }
+        }
+
+        bool need_weather = false;
+        {
+            std::lock_guard<std::mutex> lock(_wx_mutex);
+            need_weather = !_weather || now - _weather_fetched_ms >= kWeatherPeriodMs;
+        }
+        if (!need_weather) continue;
+        JsonDocument doc;
+        std::string err;
+        if (!http_get_json(open_meteo_url(loc->lat, loc->lon, _config.units), doc, nullptr, err, 32 * 1024)) {
+            mclog::tagWarn(kTag, "weather fetch failed: {}", err);
+            next_attempt_ms = now + kRetryMs;
+            continue;
+        }
+        std::string json;
+        serializeJson(doc, json);
+        auto w = parse_open_meteo(json);
+        if (!w) {
+            mclog::tagWarn(kTag, "weather response not usable");
+            next_attempt_ms = now + kRetryMs;
+            continue;
+        }
+        mclog::tagInfo(kTag, "weather: {:.1f} code {} ({}) high {:.1f} low {:.1f}", w->temp, w->code,
+                       condition_name(icon_for_code(w->code)), w->high, w->low);
+        std::lock_guard<std::mutex> lock(_wx_mutex);
+        _weather = w;
+        _weather_fetched_ms = now;
+        _weather_dirty = true;
+    }
 }
 
 void ChanApp::handle_debug_line(std::string_view line)
@@ -389,7 +524,7 @@ void ChanApp::handle_debug_line(std::string_view line)
     };
     mclog::tagInfo(kTag, "debug: {}", line);
     if (line == "help") {
-        mclog::tagInfo(kTag, "commands: attn <offline|listening|thinking|speaking|agent|celebrate|horn|sulk|clear|ack>, quiet <on|off|auto>, screen <face|agents|sports|settings>, talk, look, agent <state>");
+        mclog::tagInfo(kTag, "commands: attn <offline|listening|thinking|speaking|agent|celebrate|horn|sulk|clear|ack>, quiet <on|off|auto>, screen <face|agents|sports|settings>, talk, look, weather, agent <state>");
         return;
     }
     if (starts("attn ")) {
@@ -425,6 +560,10 @@ void ChanApp::handle_debug_line(std::string_view line)
         e.state = std::string(a.substr(0, a.find(' ')));
         e.message = "debug event";
         onAgentEvent(e);
+        return;
+    }
+    if (line == "weather") {
+        mclog::tagInfo(kTag, "{} @ {}", weatherJson(), localTimeHHMM());
         return;
     }
     if (line == "look") {

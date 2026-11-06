@@ -47,6 +47,26 @@ def test_gemini_events():
     assert cn.build_event("gemini", {"session_id": "g", "cwd": "/p/x", "hook_event_name": "AfterAgent"})["agent"] == "gemini"
 
 
+def test_copilot_events_use_event_flag_and_camel_case_payload():
+    ev = cn.build_event("copilot", {"sessionId": "cp1", "cwd": "/w/chan", "timestamp": 1}, event="notification")
+    assert ev == {"agent": "copilot", "session": "cp1", "project": "chan", "state": "needs_attention", "message": ""}
+    assert cn.build_event("copilot", {"sessionId": "cp1", "cwd": "/w"}, event="agentStop")["state"] == "done"
+    assert cn.build_event("copilot", {"sessionId": "cp1", "cwd": "/w"}, event="sessionEnd")["state"] == "ended"
+    assert cn.build_event("copilot", {"sessionId": "cp1", "cwd": "/w", "prompt": "fix tests"}, event="userPromptSubmitted")["message"] == "fix tests"
+    assert cn.build_event("copilot", {"sessionId": "cp1", "cwd": "/w"}, event="preToolUse") is None
+    assert cn.build_event("copilot", {"sessionId": "cp1", "cwd": "/w"}) is None
+
+
+def test_token_falls_back_to_repo_env(monkeypatch, tmp_path):
+    monkeypatch.delenv("CHAN_AGENT_TOKEN", raising=False)
+    monkeypatch.delenv("CHAN_HOST", raising=False)
+    monkeypatch.setattr(cn, "_repo_env", lambda: {"CHAN_AGENT_TOKEN": "from-file", "CHAN_HOST": "127.0.0.1:9"})
+    seen = {}
+    monkeypatch.setattr(cn, "post_event", lambda host, token, event, timeout: seen.update(host=host, token=token) or True)
+    assert cn.main(["--from", "claude"], stdin_text=json.dumps({"session_id": "s", "cwd": "/p", "hook_event_name": "Stop"})) == 0
+    assert seen == {"host": "127.0.0.1:9", "token": "from-file"}
+
+
 def test_generic_requires_state():
     ev = cn.build_event("generic", {"agent": "cursor", "session": "c1", "state": "needs_attention", "cwd": "/a/b"})
     assert ev["agent"] == "cursor" and ev["project"] == "b"
