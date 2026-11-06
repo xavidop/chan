@@ -5,6 +5,26 @@ on:
   pull_request:
 
 jobs:
+  host-tests:
+    name: Host tests (C++ core + Python tools)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch ArduinoJson (pinned, same as repos.json)
+        run: git clone --quiet --depth 1 --branch v7.4.2 https://github.com/bblanchon/ArduinoJson.git firmware/components/ArduinoJson
+      - name: Build and run C++ core tests
+        run: |
+          cmake -S firmware/tests -B build-host
+          cmake --build build-host
+          ctest --test-dir build-host --output-on-failure
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Python tool tests
+        run: |
+          python -m pip install --quiet pytest
+          python -m pytest scripts -q
+
   firmware-build:
     name: Firmware build (ESP-IDF v6.1)
     runs-on: ubuntu-latest

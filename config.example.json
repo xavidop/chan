@@ -1,0 +1,46 @@
+{
+  "$comment": "Copy to config.json (gitignored). Every key is documented in docs/config.md. Secrets go in .env, never here.",
+
+  "name": "Chan",
+  "language": "es",
+  "timezone": "auto",
+  "units": "metric",
+  "hostname": "chan",
+
+  "persona": {
+    "prompt": "You are Chan, a small, cheerful desk robot. You are curious, kind and a little playful. Keep spoken replies short unless asked for detail.",
+    "chattiness": 1
+  },
+
+  "gemini": {
+    "model": "gemini-2.5-flash-native-audio-preview-12-2025",
+    "voice": "Aoede",
+    "sessionIdleSeconds": 20
+  },
+
+  "quietHours": { "enabled": true, "start": "23:00", "end": "07:00" },
+
+  "volume": 70,
+  "brightness": 70,
+
+  "screens": { "agents": true, "sports": true, "weather": true },
+
+  "agents": {
+    "maxSessions": 8,
+    "staleMinutes": 120,
+    "renudgeMinutes": 5,
+    "colors": {
+      "claude-code": "#D97757",
+      "codex": "#10A37F",
+      "gemini": "#4285F4"
+    }
+  },
+
+  "teams": [
+    { "key": "valencia",  "league": "esp.1",        "name": "Valencia",          "displayName": "Valencia CF",         "color": "#EE7203", "altColor": "#1A1A1A" },
+    { "key": "bluejays",  "league": "mlb",          "name": "Toronto Blue Jays", "displayName": "Blue Jays",           "color": "#134A8E", "altColor": "#E8291C" },
+    { "key": "tfc",       "league": "usa.1",        "name": "Toronto FC",        "displayName": "Toronto FC",          "color": "#B81137", "altColor": "#455560" },
+    { "key": "raptors",   "league": "nba",          "name": "Toronto Raptors",   "displayName": "Raptors",             "color": "#CE1141", "altColor": "#1A1A1A" },
+    { "key": "spain",     "league": "uefa.nations", "name": "España",            "displayName": "Selección Española",  "color": "#C60B1E", "altColor": "#FFC400" }
+  ]
+}

@@ -10,6 +10,7 @@
 #include <apps/apps.h>
 #include <hal/hal.h>
 #include <hal/hal_toggles.h>
+#include <chan/platform/config_store.h>
 
 using namespace mooncake;
 using namespace smooth_ui_toolkit;
@@ -19,6 +20,17 @@ extern "C" void app_main(void)
     // Setup logger
     mclog::set_level(mclog::level_info);
     mclog::set_time_format(mclog::time_format_unix_milliseconds);
+
+    // Chan config (from the chancfg partition; secrets are never logged)
+    {
+        chan::ChanConfig cfg;
+        std::string err;
+        if (chan::platform::load_chan_config(cfg, err)) {
+            mclog::tagInfo("Chan", "config ok: {}, {} teams", cfg.name, cfg.teams.size());
+        } else {
+            mclog::tagError("Chan", "config error: {}", err);
+        }
+    }
 
     // HAL init
     GetHAL().init();

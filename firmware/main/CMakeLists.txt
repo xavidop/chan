@@ -22,6 +22,7 @@ file(GLOB_RECURSE STACK_CHAN_SOURCES
     "stackchan/*.c"
     "stackchan/*.cc"
     "stackchan/*.cpp"
+    "chan/*.cpp"
 )
 set(STACK_CHAN_INCLUDE_DIRS 
     "."
