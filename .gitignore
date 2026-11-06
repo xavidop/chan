@@ -1,0 +1,13 @@
+# Build
+.pio/
+.vscode/
+*.log
+
+# Secrets and personal config — never commit
+config.json
+.env
+secrets.h
+data/config.json
+
+# Stock firmware backups (device-specific, may contain Wi-Fi credentials)
+backup/
