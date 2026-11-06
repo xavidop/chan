@@ -1,0 +1,32 @@
+Chan — https://github.com/xavidop/chan
+Copyright (c) 2026 Xavier Portilla Edo. MIT License (see LICENSE).
+
+Chan is built on the work of others. Thank you.
+
+## Upstream firmware
+
+`firmware/` is a fork of the official M5Stack Stack-chan firmware:
+
+  https://github.com/m5stack/StackChan (directory `firmware/`)
+  Commit: 28b9f0c8bd6acd81cb3c70f1a93c3e373b39d400 (2026-11-04)
+  Copyright (c) 2026 M5Stack Technology CO LTD — MIT License
+
+Original SPDX headers are kept on the files that came from upstream.
+Stack-chan itself was created by Shinya Ishikawa (@stack_chan) and grown by the
+Stack-chan community, notably Takao Akaki (@mongonta555).
+
+## Dependencies fetched at build time (see `firmware/repos.json`)
+
+- xiaozhi-esp32 v2.5.2 — https://github.com/78/xiaozhi-esp32 — MIT
+  (voice pipeline, echo cancellation, wake word, display stack; Chan applies
+  `firmware/patches/xiaozhi-esp32.patch` on top)
+- mooncake v2.3.3, mooncake_log v1.5.0, smooth_ui_toolkit v2.12.0 —
+  https://github.com/Forairaaaaa — MIT
+- ArduinoJson v7.4.2 — https://github.com/bblanchon/ArduinoJson — MIT
+- esp-now — https://github.com/espressif/esp-now — Apache-2.0
+- ESP-IDF component registry packages listed in `firmware/main/idf_component.yml`
+  (Espressif and others; licenses in each package)
+
+## Sound effects
+
+See `firmware/main/assets/sfx/SOURCES.md` (added when clips are introduced).

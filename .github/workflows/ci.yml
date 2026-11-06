@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  firmware-build:
+    name: Firmware build (ESP-IDF v6.1)
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:v6.1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch pinned dependencies
+        working-directory: firmware
+        run: |
+          git config --global --add safe.directory '*'
+          python3 fetch_repos.py
+      - name: Build
+        working-directory: firmware
+        shell: bash
+        run: |
+          . $IDF_PATH/export.sh
+          idf.py set-target esp32s3
+          idf.py build
+      - name: Upload firmware image
+        uses: actions/upload-artifact@v4
+        with:
+          name: chan-firmware
+          path: |
+            firmware/build/*.bin
+            firmware/build/bootloader/bootloader.bin
+            firmware/build/partition_table/partition-table.bin
+          if-no-files-found: error

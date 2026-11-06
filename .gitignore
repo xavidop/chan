@@ -11,3 +11,16 @@ data/config.json
 
 # Stock firmware backups (device-specific, may contain Wi-Fi credentials)
 backup/
+.superpowers/
+
+# Firmware build outputs and fetched dependencies
+firmware/build/
+firmware/managed_components/
+firmware/xiaozhi-esp32/
+firmware/components/
+firmware/sdkconfig
+firmware/sdkconfig.old
+build-host/
+__pycache__/
+.pytest_cache/
+.venv/
