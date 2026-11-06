@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: MIT
  */
 #include "app_setup.h"
-#include "workers/feature_toggle.h"
 #include <hal/hal.h>
 #include <mooncake.h>
 #include <mooncake_log.h>
@@ -46,16 +45,10 @@ void AppSetup::onOpen()
     _menu_sections = {
         {
             "Wi-Fi",
-            {{"Change Wi-Fi",
-              [&]() {
-                  _destroy_menu    = true;
-                  _need_warm_reset = true;
-                  _worker          = std::make_unique<WifiSetupWorker>();
-              }},
-             {"Testing service",
+            {{"Status",
               [&]() {
                   _destroy_menu = true;
-                  _worker       = std::make_unique<NetworkTestWorker>();
+                  _worker       = std::make_unique<WifiStatusWorker>();
               }}},
         },
         {
@@ -69,26 +62,6 @@ void AppSetup::onOpen()
               [&]() {
                   _destroy_menu = true;
                   _worker       = std::make_unique<VolumeSetupWorker>();
-              }},
-             {"Timezone",
-              [&]() {
-                  _destroy_menu = true;
-                  _worker       = std::make_unique<TimezoneWorker>();
-              }}},
-        },
-        {
-            "AI.Agent",
-            {{"General",
-              [&]() {
-                  _destroy_menu    = true;
-                  _need_warm_reset = true;
-                  _worker          = std::make_unique<XiaozhiGeneralWorker>();
-              }},
-             {"Power Saving",
-              [&]() {
-                  _destroy_menu    = true;
-                  _need_warm_reset = true;
-                  _worker          = std::make_unique<XiaozhiPowerSavingWorker>();
               }}},
         },
         {
@@ -110,45 +83,15 @@ void AppSetup::onOpen()
               }}},
         },
         {
-            "Account",
-            {{"Unbind & Reset",
+            "About",
+            {{fmt::format("Chan {}", common::FirmwareVersion),
               [&]() {
-                  _destroy_menu    = true;
-                  _need_warm_reset = true;
-                  _worker          = std::make_unique<AccountWorker>();
-              }}},
-        },
-        {
-            "Firmware",
-            {
-                {fmt::format("Version:  {}", common::FirmwareVersion),
-                 [&]() {
-                     _magic_count++;
-                     if (_magic_count >= 10) {
-                         _magic_count  = 0;
-                         _destroy_menu = true;
-                         _worker       = std::make_unique<FwVersionWorker>();
-                     }
-                 }},
-                {"Check for Updates",
-                 [&]() {
-                     _destroy_menu    = true;
-                     _need_warm_reset = true;
-                     _worker          = std::make_unique<SystemUpdateWorker>();
-                 }},
-                //  {"Factory Reset",
-                //   [&]() {
-                //       _destroy_menu = true;
-                //       _worker       = std::make_unique<FactoryResetWorker>();
-                //   }}
-            },
-        },
-        {
-            "Apps",
-            {{"App visibility",
-              [&]() {
-                  _destroy_menu = true;
-                  _worker       = std::make_unique<FeatureToggleWorker>();
+                  _magic_count++;
+                  if (_magic_count >= 10) {
+                      _magic_count  = 0;
+                      _destroy_menu = true;
+                      _worker       = std::make_unique<FwVersionWorker>();
+                  }
               }}},
         },
     };
@@ -201,7 +144,7 @@ void AppSetup::onClose()
     view::destroy_home_indicator();
     view::destroy_status_bar();
 
-    if (_need_warm_reset) {
-        GetHAL().requestWarmReboot(6);
-    }
+    // Chan: Settings is the only mooncake app; leaving it returns to the companion.
+    GetHAL().clearWarmRebootRequest();
+    GetHAL().reboot();
 }

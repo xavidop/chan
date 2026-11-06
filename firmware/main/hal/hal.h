@@ -22,23 +22,7 @@
  */
 enum class HeadPetGesture { None, Press, Release, SwipeForward, SwipeBackward };
 
-/**
- * @brief
- *
- */
-enum class WsSignalSource {
-    Local = 0,
-    Remote,
-};
 
-/**
- * @brief
- *
- */
-struct WsTextMessage_t {
-    std::string name;
-    std::string content;
-};
 
 /**
  * @brief
@@ -54,46 +38,6 @@ enum class ImuMotionEvent {
  * @brief
  *
  */
-enum class AppConfigEvent {
-    None = 0,
-    AppConnected,
-    AppDisconnected,
-    TryWifiConnect,
-    WifiConnectFailed,
-    WifiConnected,
-};
-
-/**
- * @brief
- *
- */
-enum class CommonLogLevel {
-    Info = 0,
-    Warning,
-    Error,
-};
-
-/**
- * @brief
- *
- */
-namespace app_center {
-
-struct AppInfo_t {
-    std::string name;
-    std::string iconUrl;
-    std::string description;
-    std::string firmwareUrl;
-};
-
-using AppInfoList_t = std::vector<AppInfo_t>;
-
-};  // namespace app_center
-
-/**
- * @brief
- *
- */
 enum class WifiStatus {
     None = 0,
     Low,
@@ -101,14 +45,6 @@ enum class WifiStatus {
     High,
 };
 
-/**
- * @brief
- *
- */
-struct UserAccountInfo_t {
-    std::string username;
-    std::string deviceName;
-};
 
 /**
  * @brief
@@ -215,19 +151,6 @@ public:
     XiaozhiConfig_t getXiaozhiConfig();
     void setXiaozhiConfig(XiaozhiConfig_t config);
 
-    /* ----------------------------------- BLE ---------------------------------- */
-    uitk::Signal<const char*> onBleMotionData;
-    uitk::Signal<const char*> onBleAvatarData;
-    uitk::Signal<const char*> onBleConfigData;
-    uitk::Signal<const char*> onBleRgbData;
-    uitk::Signal<AppConfigEvent> onAppConfigEvent;
-
-    void startBleServer();
-    bool isBleConnected();
-    void startAppConfigServer();
-    bool isAppConfiged();
-    void resetAppConfiged();
-
     /* --------------------------------- HeadPet -------------------------------- */
     uitk::Signal<HeadPetGesture> onHeadPetGesture;
 
@@ -239,20 +162,6 @@ public:
     /* ---------------------------------- Power --------------------------------- */
     void setServoPowerEnabled(bool enabled);
 
-    /* -------------------------------- Websocket ------------------------------- */
-    uitk::Signal<std::string_view> onWsMotionData;
-    uitk::Signal<std::string_view> onWsAvatarData;
-    uitk::Signal<std::string> onWsCallRequest;
-    uitk::Signal<bool> onWsCallResponse;
-    uitk::Signal<WsSignalSource> onWsCallEnd;
-    uitk::Signal<const WsTextMessage_t&> onWsTextMessage;
-    uitk::Signal<bool> onWsVideoModeChange;
-    uitk::Signal<std::shared_ptr<LvglImage>> onWsVideoFrame;
-    uitk::Signal<std::string_view> onWsDanceData;
-    uitk::Signal<CommonLogLevel, std::string_view> onWsLog;
-
-    void startWebSocketAvatarService(std::function<void(std::string_view)> onStartLog);
-
     /* ----------------------------------- IMU ---------------------------------- */
     uitk::Signal<ImuMotionEvent> onImuMotionEvent;
 
@@ -262,39 +171,15 @@ public:
     void setTimezone(std::string_view tz);
     std::string getTimezone();
 
-    /* --------------------------------- EspNow --------------------------------- */
-    uitk::Signal<const std::vector<uint8_t>&> onEspNowData;
-    bool startEspNow(int channel);
-    bool espNowSend(const std::vector<uint8_t>& data, const uint8_t* destAddr = nullptr);
-    void setLaserEnabled(bool enabled);
-
     /* ------------------------------- Warm Reboot ------------------------------ */
     void requestWarmReboot(int appIndex);
     int getWarmRebootTarget();
     void clearWarmRebootRequest();
-    [[noreturn]] void requestAppSetup();
-    bool consumeAppSetupRequest();
 
     /* --------------------------------- Network -------------------------------- */
     void startNetwork(std::function<void(std::string_view)> onLog);
     WifiStatus getWifiStatus();
     void startSntp();
-
-    /* -------------------------------- App center ------------------------------- */
-    app_center::AppInfoList_t fetchAppList();
-    void launchApp(std::string_view url, std::function<void(int)> onProgress);
-
-    /* --------------------------------- EzData --------------------------------- */
-    void startEzDataService(std::function<void(std::string_view)> onStartLog);
-    uitk::Signal<std::string_view> onEzdataPairCode;
-
-    /* ------------------------------- User Acount ------------------------------ */
-    UserAccountInfo_t getUserAccountInfo();
-    bool updateAccountInfo(std::function<void(std::string_view)> onLog);
-    bool unbindAccount(std::function<void(std::string_view)> onLog);
-
-    /* ----------------------------------- OTA ---------------------------------- */
-    bool updateFirmware(std::function<void(std::string_view)> onLog);
 
     /* ---------------------------------- Audio --------------------------------- */
     void setSpeakerVolume(uint8_t volume, bool permanent = false);

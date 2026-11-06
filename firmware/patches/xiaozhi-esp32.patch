@@ -1,14 +1,41 @@
 diff --git a/main/application.cc b/main/application.cc
-index 31de205..50096d8 100644
+index 31de205..84c98c4 100644
 --- a/main/application.cc
 +++ b/main/application.cc
-@@ -1,4 +1,5 @@
- #include "application.h"
-+#include <hal/hal.h>
- #include "assets.h"
- #include "assets/lang_config.h"
- #include "audio_codec.h"
-@@ -442,6 +443,7 @@ void Application::CheckAssetsVersion() {
+@@ -298,10 +298,13 @@ void Application::HandleNetworkConnectedEvent() {
+             return;
+         }
+ 
++        // Chan: no cloud activation or server-driven OTA. Create the voice protocol
++        // directly and report ready.
+         xTaskCreate(
+             [](void* arg) {
+                 Application* app = static_cast<Application*>(arg);
+-                app->ActivationTask();
++                app->InitializeProtocol();
++                xEventGroupSetBits(app->event_group_, MAIN_EVENT_ACTIVATION_DONE);
+                 app->activation_task_handle_ = nullptr;
+                 vTaskDelete(NULL);
+             },
+@@ -336,7 +339,7 @@ void Application::HandleActivationDoneEvent() {
+     SystemInfo::PrintHeapStats();
+     SetDeviceState(kDeviceStateIdle);
+ 
+-    has_server_time_ = ota_->HasServerTime();
++    has_server_time_ = ota_ && ota_->HasServerTime();
+ 
+     // Protocol start may have already raised MAIN_EVENT_ERROR. Do not replace
+     // that alert with the "ready" UI/sound — the main loop can process both
+@@ -344,7 +347,7 @@ void Application::HandleActivationDoneEvent() {
+     const bool has_error = !last_error_message_.empty();
+     if (!has_error) {
+         auto display = Board::GetInstance().GetDisplay();
+-        std::string message = std::string(Lang::Strings::VERSION) + ota_->GetCurrentVersion();
++        std::string message = ota_ ? std::string(Lang::Strings::VERSION) + ota_->GetCurrentVersion() : std::string("Chan ready");
+         display->ShowNotification(message.c_str());
+         display->SetChatMessage("system", "");
+     }
+@@ -442,6 +445,7 @@ void Application::CheckAssetsVersion() {
  void Application::CheckNewVersion() {
      const int MAX_RETRY = 10;
      int retry_count = 0;
@@ -16,14 +43,11 @@ index 31de205..50096d8 100644
      int retry_delay = 10;  // Initial retry delay in seconds
  
      auto& board = Board::GetInstance();
-@@ -499,15 +501,18 @@ void Application::CheckNewVersion() {
+@@ -499,15 +503,15 @@ void Application::CheckNewVersion() {
  
          // No new version, mark the current version as valid
          ota_->MarkCurrentVersionValid();
 -        if (!ota_->HasActivationCode() && !ota_->HasActivationChallenge()) {
-+        if (ota_->RequiresAppBinding()) {
-+            GetHAL().requestAppSetup();
-+        }
 +        if (!ota_->HasActivationChallenge()) {
              // Exit the loop if done checking new version
              break;
@@ -33,13 +57,30 @@ index 31de205..50096d8 100644
 -        // Activation code is shown to the user and waiting for the user to input
 -        if (ota_->HasActivationCode()) {
 -            ShowActivationCode(ota_->GetActivationCode(), ota_->GetActivationMessage());
-+        // Keep automatic device authentication bounded; manual binding uses the App.
++        // Keep automatic device authentication bounded.
 +        if (++challenge_rounds > 3) {
-+            GetHAL().requestAppSetup();
++            break;
          }
  
          // This will block the loop until the activation is done or timeout
-@@ -725,30 +730,6 @@ void Application::InitializeProtocol() {
+@@ -535,13 +539,11 @@ void Application::InitializeProtocol() {
+ 
+     display->SetStatus(Lang::Strings::LOADING_PROTOCOL);
+ 
+-    if (ota_->HasMqttConfig()) {
++    if (ota_ && ota_->HasMqttConfig()) {
+         protocol_ = std::make_unique<MqttProtocol>();
+-    } else if (ota_->HasWebsocketConfig()) {
+-        protocol_ = std::make_unique<WebsocketProtocol>();
+     } else {
+-        ESP_LOGW(TAG, "No protocol specified in the OTA config, using MQTT");
+-        protocol_ = std::make_unique<MqttProtocol>();
++        // Chan: WebSocket by default (replaced by the Gemini Live protocol later).
++        protocol_ = std::make_unique<WebsocketProtocol>();
+     }
+ 
+     protocol_->OnConnected([this]() { DismissAlert(); });
+@@ -725,30 +727,6 @@ void Application::InitializeProtocol() {
      protocol_->Start();
  }
  
@@ -70,7 +111,7 @@ index 31de205..50096d8 100644
  void Application::Alert(const char* status, const char* message, const char* emotion,
                          const std::string_view& sound) {
      ESP_LOGW(TAG, "Alert [%s] %s: %s", emotion, status, message);
-@@ -833,6 +814,7 @@ void Application::ContinueOpenAudioChannel(ListeningMode mode) {
+@@ -833,6 +811,7 @@ void Application::ContinueOpenAudioChannel(ListeningMode mode) {
          if (!protocol_->OpenAudioChannel()) {
              // Return to idle so the device is not stuck in the connecting
              // state (not every failure path reports a network error)
@@ -78,7 +119,7 @@ index 31de205..50096d8 100644
              SetDeviceState(kDeviceStateIdle);
              return;
          }
-@@ -970,6 +952,7 @@ void Application::ContinueWakeWordInvoke(const std::string& wake_word) {
+@@ -970,6 +949,7 @@ void Application::ContinueWakeWordInvoke(const std::string& wake_word) {
              // Return to idle so the device is not stuck in the connecting
              // state (not every failure path reports a network error), and
              // wake word detection is re-enabled by the idle state handler.

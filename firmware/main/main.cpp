@@ -1,5 +1,6 @@
 /*
  * SPDX-FileCopyrightText: 2026 M5Stack Technology CO LTD
+ * SPDX-FileCopyrightText: 2026 Xavier Portilla Edo
  *
  * SPDX-License-Identifier: MIT
  */
@@ -9,7 +10,7 @@
 #include <mooncake.h>
 #include <apps/apps.h>
 #include <hal/hal.h>
-#include <hal/hal_toggles.h>
+#include <chan/platform/chan_app.h>
 #include <chan/platform/config_store.h>
 
 using namespace mooncake;
@@ -22,14 +23,13 @@ extern "C" void app_main(void)
     mclog::set_time_format(mclog::time_format_unix_milliseconds);
 
     // Chan config (from the chancfg partition; secrets are never logged)
-    {
-        chan::ChanConfig cfg;
-        std::string err;
-        if (chan::platform::load_chan_config(cfg, err)) {
-            mclog::tagInfo("Chan", "config ok: {}, {} teams", cfg.name, cfg.teams.size());
-        } else {
-            mclog::tagError("Chan", "config error: {}", err);
-        }
+    chan::ChanConfig cfg;
+    std::string cfg_err;
+    const bool cfg_ok = chan::platform::load_chan_config(cfg, cfg_err);
+    if (cfg_ok) {
+        mclog::tagInfo("Chan", "config ok: {}, {} teams", cfg.name, cfg.teams.size());
+    } else {
+        mclog::tagError("Chan", "config error: {}", cfg_err);
     }
 
     // HAL init
@@ -39,39 +39,23 @@ extern "C" void app_main(void)
     ui_hal::on_delay([](uint32_t ms) { GetHAL().delay(ms); });
     ui_hal::on_get_tick([]() { return GetHAL().millis(); });
 
-    const bool skip_mooncake = GetHAL().getXiaozhiConfig().startAiAgentOnBoot && GetHAL().getWarmRebootTarget() < 0;
+    if (cfg_ok) {
+        chan::platform::ChanApp::get().init(cfg);
+    }
 
-    if (!skip_mooncake) {
-        // Install apps
-        GetMooncake().installApp(std::make_unique<AppLauncher>());
-        hal_toggles::register_app_id(hal_toggles::App::AiAgent,
-                                     GetMooncake().installApp(std::make_unique<AppAiAgent>()));
-        hal_toggles::register_app_id(hal_toggles::App::Avatar, GetMooncake().installApp(std::make_unique<AppAvatar>()));
-        hal_toggles::register_app_id(hal_toggles::App::EspnowRemote,
-                                     GetMooncake().installApp(std::make_unique<AppEspnowControl>()));
-        hal_toggles::register_app_id(hal_toggles::App::AppCenter,
-                                     GetMooncake().installApp(std::make_unique<AppAppCenter>()));
-        hal_toggles::register_app_id(hal_toggles::App::Ezdata, GetMooncake().installApp(std::make_unique<AppEzdata>()));
-        hal_toggles::register_app_id(hal_toggles::App::Dance, GetMooncake().installApp(std::make_unique<AppDance>()));
-        GetMooncake().installApp(std::make_unique<AppSetup>());
-
-        // Main loop
+    // Settings is the only mooncake app left; it is reached by a warm reboot from the
+    // companion and reboots back into it when closed (see AppSetup::onClose).
+    if (GetHAL().getWarmRebootTarget() == chan::platform::kSettingsWarmBootTarget) {
+        GetHAL().clearWarmRebootRequest();
+        const int setup_id = GetMooncake().installApp(std::make_unique<AppSetup>());
+        GetMooncake().openApp(setup_id);
         while (1) {
             GetHAL().feedTheDog();
             GetHAL().updateHeapStatusLog();
-
             GetMooncake().update();
-
-            if (GetHAL().isXiaozhiStartRequested()) {
-                break;
-            }
         }
-
-        // Uninstall all apps and destroy mooncake
-        GetMooncake().uninstallAllApps();
-        DestroyMooncake();
     }
 
-    // Start xiaozhi, never returns
+    // Companion mode: avatar + voice runtime, with Chan's shell on top. Never returns.
     GetHAL().startXiaozhi();
 }

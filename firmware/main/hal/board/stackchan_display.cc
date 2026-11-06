@@ -229,6 +229,7 @@ lv_disp_t* StackChanAvatarDisplay::GetLvglDisplay()
 }
 
 #include <hal/board/hal_bridge.h>
+#include <chan/platform/chan_app.h>
 
 void StackChanAvatarDisplay::SetupUI()
 {
@@ -253,18 +254,7 @@ void StackChanAvatarDisplay::SetupUI()
 
     auto avatar = std::make_unique<DefaultAvatar>();
     avatar->init(lv_screen_active());
-    avatar->getPanel()->onClick().connect([]() {
-        static uint32_t last_toggle_tick = 0;
-        const uint32_t now               = GetHAL().millis();
-        if (last_toggle_tick != 0 && now - last_toggle_tick < 2000) {
-            return;
-        }
-
-        if (hal_bridge::is_xiaozhi_ready()) {
-            last_toggle_tick = now;
-            hal_bridge::toggle_xiaozhi_chat_state();
-        }
-    });
+    avatar->getPanel()->onClick().connect([]() { chan::platform::ChanApp::get().onTap(); });
 
     stackchan.attachAvatar(std::move(avatar));
     stackchan.addModifier(std::make_unique<BreathModifier>());

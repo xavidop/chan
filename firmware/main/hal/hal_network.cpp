@@ -113,9 +113,10 @@ void Hal::startNetwork(std::function<void(std::string_view)> onLog)
         if (setup_required || uint32_t(millis() - started_at) >= 65000) {
             board.SetNetworkEventCallback(nullptr);
             if (onLog) {
-                onLog("WiFi unavailable. Open StackChan World to set up WiFi.");
+                onLog("WiFi unavailable. Check WIFI_SSID/WIFI_PASSWORD in .env and re-run flash-config.");
             }
-            requestAppSetup();
+            mclog::tagWarn(_tag, "network not connected; giving up");
+            return;
         }
         GetHAL().delay(50);
     }

@@ -690,12 +690,11 @@ public:
         GetBacklight()->RestoreBrightness();
     }
 
-    // All fallback paths (no saved SSID, timeout, explicit reconfiguration) use
-    // the same BLE App setup flow. Never start the upstream configuration AP.
+    // Chan has no provisioning UI: Wi-Fi credentials come from .env via flash-config.
+    // Never start the upstream configuration AP; just report and keep retrying.
     void StartWifiConfigMode() override
     {
-        ESP_LOGW(TAG, "WiFi setup required; opening StackChan App setup");
-        GetHAL().requestAppSetup();
+        ESP_LOGW(TAG, "Wi-Fi unavailable; check WIFI_SSID/WIFI_PASSWORD in .env and re-run `chan.py flash-config`");
     }
 
     virtual AudioCodec* GetAudioCodec() override
