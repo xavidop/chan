@@ -2,8 +2,8 @@
 // coherent output for the LEDs, the face and the speaker. Pure C++17, host-tested.
 //
 // Priority, high → low: Celebrate/Sulk (timed) > AgentAlert > Listening > Speaking >
-// Thinking > Offline > idle. Sounds are queued when a signal is raised and handed out
-// once by take_sound(); quiet hours swallow them.
+// Thinking > Offline > idle. Sounds are queued (a small bounded FIFO) when a signal is
+// raised and handed out one at a time by take_sound(); quiet hours swallow them.
 #pragma once
 
 #include <cstdint>
@@ -30,6 +30,8 @@ struct Output {
 class Attention {
 public:
     static constexpr uint32_t kDefaultTimedMs = 8000;
+    // Sounds waiting to be played; a goal and an agent alert in the same tick both play.
+    static constexpr int kMaxPendingSounds = 3;
     static constexpr uint32_t kDefaultAgentColor = 0xFFA000;
     static constexpr uint32_t kListeningColor = 0x00C8FF;
     static constexpr uint32_t kThinkingColor = 0x2050FF;
@@ -44,11 +46,11 @@ public:
     void clear(Signal s);
     // Head pat / voice turn: drop AgentAlert, Celebrate and Sulk. Listening/Offline stay.
     void acknowledge();
-    // Queue a sound explicitly (e.g. the agent re-nudge).
+    // Queue a sound explicitly (e.g. the agent re-nudge). Dropped when the queue is full.
     void queue_sound(Sound s);
 
     Output output(uint32_t now_ms, bool quiet) const;
-    // Returns the pending sound once, or None. Always None while quiet (and drops it).
+    // Returns the oldest pending sound, or None. Always None while quiet (and drops them all).
     Sound take_sound(bool quiet);
 
     bool is_active(Signal s, uint32_t now_ms) const;
@@ -61,7 +63,8 @@ private:
         uint32_t color = 0, alt = 0;
     };
     State _s[static_cast<int>(Signal::Count_)];
-    Sound _pending = Sound::None;
+    Sound _pending[kMaxPendingSounds] = {};
+    int _pending_count = 0;
 
     const State& st(Signal s) const { return _s[static_cast<int>(s)]; }
     State& st(Signal s) { return _s[static_cast<int>(s)]; }

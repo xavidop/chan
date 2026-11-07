@@ -19,9 +19,9 @@ void Attention::raise(Signal s, uint32_t now_ms, uint32_t color, uint32_t alt, u
     x.until_ms = is_timed(s) ? now_ms + (duration_ms ? duration_ms : kDefaultTimedMs) : 0;
 
     switch (s) {
-        case Signal::AgentAlert: _pending = Sound::Chime; break;
-        case Signal::Celebrate: _pending = Sound::Cheer; break;
-        case Signal::Sulk: _pending = Sound::Aww; break;
+        case Signal::AgentAlert: queue_sound(Sound::Chime); break;
+        case Signal::Celebrate: queue_sound(Sound::Cheer); break;
+        case Signal::Sulk: queue_sound(Sound::Aww); break;
         default: break;
     }
 }
@@ -40,7 +40,8 @@ void Attention::acknowledge()
 
 void Attention::queue_sound(Sound s)
 {
-    _pending = s;
+    if (s == Sound::None || _pending_count >= kMaxPendingSounds) return;
+    _pending[_pending_count++] = s;
 }
 
 bool Attention::is_active(Signal s, uint32_t now_ms) const
@@ -110,9 +111,15 @@ Output Attention::output(uint32_t now_ms, bool quiet) const
 
 Sound Attention::take_sound(bool quiet)
 {
-    Sound s = _pending;
-    _pending = Sound::None;
-    return quiet ? Sound::None : s;
+    if (quiet) {
+        _pending_count = 0;
+        return Sound::None;
+    }
+    if (_pending_count == 0) return Sound::None;
+    const Sound s = _pending[0];
+    for (int i = 1; i < _pending_count; ++i) _pending[i - 1] = _pending[i];
+    --_pending_count;
+    return s;
 }
 
 }  // namespace chan

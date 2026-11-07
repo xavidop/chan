@@ -159,6 +159,34 @@ TEST_CASE("sound fires once")
     CHECK(a.take_sound(false) == Sound::Aww);
 }
 
+TEST_CASE("two simultaneous sounds both play, in order")
+{
+    Attention a;
+    a.raise(Signal::Celebrate, 0, 0xEE7203);
+    a.raise(Signal::AgentAlert, 0, 0xD97757);
+    CHECK(a.take_sound(false) == Sound::Cheer);
+    CHECK(a.take_sound(false) == Sound::Chime);
+    CHECK(a.take_sound(false) == Sound::None);
+}
+
+TEST_CASE("sound queue is bounded and drops the newest when full")
+{
+    Attention a;
+    for (int i = 0; i < Attention::kMaxPendingSounds + 2; ++i) a.queue_sound(Sound::Nudge);
+    a.queue_sound(Sound::GoalHorn);  // dropped: queue already full
+    for (int i = 0; i < Attention::kMaxPendingSounds; ++i) CHECK(a.take_sound(false) == Sound::Nudge);
+    CHECK(a.take_sound(false) == Sound::None);
+}
+
+TEST_CASE("quiet take drops the whole queue")
+{
+    Attention a;
+    a.raise(Signal::Celebrate, 0, 0xEE7203);
+    a.queue_sound(Sound::GoalHorn);
+    CHECK(a.take_sound(true) == Sound::None);
+    CHECK(a.take_sound(false) == Sound::None);
+}
+
 TEST_CASE("no sound when quiet but alert still shown")
 {
     Attention a;
