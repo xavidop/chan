@@ -35,11 +35,14 @@ constexpr uint32_t kSwipeSwallowMs = 400;
 constexpr uint32_t kAttentionPeriodMs = 50;
 constexpr uint32_t kNetPollMs = 500;
 
+// kUnknownMinuteOfDay until SNTP has set the clock (and the timezone has been applied), so
+// quiet hours cannot kick in on the 1970 UTC the device boots with.
 int local_minute_of_day()
 {
     time_t now = time(nullptr);
     struct tm tm_now;
     localtime_r(&now, &tm_now);
+    if (!clock_is_valid(tm_now.tm_year + 1900)) return kUnknownMinuteOfDay;
     return tm_now.tm_hour * 60 + tm_now.tm_min;
 }
 }  // namespace

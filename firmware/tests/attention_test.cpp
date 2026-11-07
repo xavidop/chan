@@ -25,6 +25,25 @@ TEST_CASE("quiet hours same-day window")
     CHECK_FALSE(in_quiet_hours(q, 9 * 60));
 }
 
+TEST_CASE("unknown local time is never quiet")
+{
+    // Before SNTP sets the clock the device is at 1970 UTC, which would otherwise land
+    // inside a 23:00-07:00 window at boot. kUnknownMinuteOfDay means "no valid time yet".
+    QuietHours q{true, 23 * 60, 7 * 60};
+    CHECK_FALSE(in_quiet_hours(q, kUnknownMinuteOfDay));
+    QuietHours all_day{true, 0, 24 * 60 - 1};
+    CHECK_FALSE(in_quiet_hours(all_day, kUnknownMinuteOfDay));
+    CHECK(in_quiet_hours(all_day, 0));
+}
+
+TEST_CASE("clock_is_valid needs a plausible year")
+{
+    CHECK_FALSE(clock_is_valid(1970));
+    CHECK_FALSE(clock_is_valid(2019));
+    CHECK(clock_is_valid(2020));
+    CHECK(clock_is_valid(2026));
+}
+
 TEST_CASE("disabled quiet hours never quiet")
 {
     QuietHours q{false, 0, 24 * 60 - 1};
