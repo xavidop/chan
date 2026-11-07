@@ -173,8 +173,12 @@ void ChanApp::tick()
     if (!_ui_ready) return;
     confirm_running_image_if_stable();
     if (_shell.takeSettingsRequest()) {
-        mclog::tagInfo(kTag, "opening settings");
-        GetHAL().requestWarmReboot(kSettingsWarmBootTarget);  // never returns
+        if (_ota_in_progress) {
+            mclog::tagWarn(kTag, "settings refused: firmware update in progress");
+        } else {
+            mclog::tagInfo(kTag, "opening settings");
+            GetHAL().requestWarmReboot(kSettingsWarmBootTarget);  // never returns
+        }
     }
     const uint32_t now = GetHAL().millis();
     poll_network(now);

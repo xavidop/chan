@@ -31,7 +31,8 @@ public:
     // Milliseconds (HAL clock) of the last horizontal swipe; used to swallow the
     // click LVGL may also report for the same touch.
     uint32_t last_gesture_ms() const { return _last_gesture_ms; }
-    // Holding the screen for 2 s opens Settings; the release click that follows must be ignored.
+    // Holding the screen for 2 s opens Settings (refused while an OTA upload is running); the
+    // release click that follows must be ignored.
     uint32_t last_long_press_ms() const { return _last_long_press_ms; }
 
     // show(Settings) only records the request: NVS writes are not allowed from the LVGL

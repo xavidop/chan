@@ -132,7 +132,12 @@ void Shell::press_cb(lv_event_t* e)
         if (!self->_long_press_fired && self->_press_started_ms && now - self->_press_started_ms >= 2000) {
             self->_long_press_fired = true;
             self->_last_long_press_ms = now;
-            self->show(Screen::Settings);
+            if (ChanApp::get().otaInProgress()) {
+                // A warm reboot now would leave a half-written OTA partition; try again after the update.
+                mclog::tagWarn(kTag, "settings refused: firmware update in progress");
+            } else {
+                self->show(Screen::Settings);
+            }
         }
     } else if (code == LV_EVENT_RELEASED) {
         self->_press_started_ms = 0;
