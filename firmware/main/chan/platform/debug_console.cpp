@@ -12,7 +12,11 @@ namespace chan::platform {
 namespace {
 
 constexpr const char* kTag = "DebugConsole";
+// Debug commands run on this task (agent events, screen switches, JSON); at 4 KB the measured
+// minimum free stack was 1.2 KB, so 6 KB.
+constexpr uint32_t kReaderStackBytes = 6144;
 std::function<void(std::string_view)> g_handler;
+TaskHandle_t g_reader = nullptr;
 
 void reader_task(void*)
 {
@@ -44,8 +48,13 @@ void debug_console_start(std::function<void(std::string_view)> handler)
         mclog::tagWarn(kTag, "usb serial jtag driver install failed: {}", static_cast<int>(err));
         return;
     }
-    xTaskCreate(reader_task, "chan_dbg", 4096, nullptr, 1, nullptr);
+    xTaskCreate(reader_task, "chan_dbg", kReaderStackBytes, nullptr, 1, &g_reader);
     mclog::tagInfo(kTag, "ready; type `help`");
+}
+
+size_t debug_console_stack_free_bytes()
+{
+    return g_reader ? uxTaskGetStackHighWaterMark(g_reader) : 0;
 }
 
 }  // namespace chan::platform

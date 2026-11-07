@@ -139,7 +139,7 @@ void ChanApp::onXiaozhiReady()
     _next_sports_poll_ms = GetHAL().millis() + 15000;  // let the audio engine finish allocating first
     // Stack in PSRAM: this task only does network I/O and parsing (never NVS/flash writes).
     // Lowest priority: big feed downloads must never starve the UI, audio or I2C tasks.
-    xTaskCreatePinnedToCoreWithCaps(net_task, "chan_net", 16384, this, 1, nullptr, 0, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    xTaskCreatePinnedToCoreWithCaps(net_task, "chan_net", 16384, this, 1, &_net_task_handle, 0, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
 
     // Head panel: pat = acknowledge; swipe front-to-back = next screen, back = previous.
     // The capacitive head panel produces phantom presses and swipes, so: swipes are not used for
@@ -181,6 +181,8 @@ void ChanApp::tick()
         }
     }
     const uint32_t now = GetHAL().millis();
+    if (!_update_task_handle) _update_task_handle = xTaskGetCurrentTaskHandle();  // tick() runs on the stackchan task
+    log_stack_margins_once(now);
     poll_network(now);
     if (_net_online && !_http_started) {
         _http_started = true;
@@ -233,6 +235,24 @@ void ChanApp::tick()
         _last_attention_ms = now;
         apply_attention(now);
     }
+}
+
+void ChanApp::log_stack_margins()
+{
+    // Minimum free stack each task has ever had; `stacks` on the debug console prints it on demand.
+    const auto free_bytes = [](TaskHandle_t t) { return static_cast<unsigned>(uxTaskGetStackHighWaterMark(t)); };
+    mclog::tagInfo(kTag, "stack free (bytes, minimum so far): stackchan={} chan_dbg={} chan_net={}",
+                   _update_task_handle ? free_bytes(_update_task_handle) : 0u, static_cast<unsigned>(debug_console_stack_free_bytes()),
+                   _net_task_handle ? free_bytes(_net_task_handle) : 0u);
+}
+
+void ChanApp::log_stack_margins_once(uint32_t now_ms)
+{
+    // One minute in, every task has been through its heaviest paths at least once (first
+    // renders, first fetches, SNTP): the high-water marks say how much stack is really spare.
+    if (_stacks_logged || now_ms < 60000) return;
+    _stacks_logged = true;
+    log_stack_margins();
 }
 
 void ChanApp::poll_network(uint32_t now_ms)
@@ -878,7 +898,11 @@ void ChanApp::handle_debug_line(std::string_view line)
     };
     mclog::tagInfo(kTag, "debug: {}", line);
     if (line == "help") {
-        mclog::tagInfo(kTag, "commands: attn <offline|listening|thinking|speaking|agent|celebrate|horn|sulk|clear|ack>, quiet <on|off|auto>, screen <face|agents|sports|weather|settings>, talk, look, weather, overlay, agent <state>, fake-score <league> <team_key> [opp]");
+        mclog::tagInfo(kTag, "commands: attn <offline|listening|thinking|speaking|agent|celebrate|horn|sulk|clear|ack>, quiet <on|off|auto>, screen <face|agents|sports|weather|settings>, talk, look, weather, overlay, agent <state>, fake-score <league> <team_key> [opp], stacks");
+        return;
+    }
+    if (line == "stacks") {
+        log_stack_margins();
         return;
     }
     if (starts("attn ")) {

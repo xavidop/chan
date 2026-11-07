@@ -18,6 +18,9 @@
 #include <chan/platform/screens/weather_screen.h>
 #include <chan/platform/screens/shell.h>
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -126,6 +129,11 @@ private:
     bool _http_started = false;
     static void net_task(void* arg);
     void net_loop();
+    void log_stack_margins();
+    void log_stack_margins_once(uint32_t now_ms);
+    bool _stacks_logged = false;
+    TaskHandle_t _net_task_handle = nullptr;
+    TaskHandle_t _update_task_handle = nullptr;  // the stackchan task, learned on the first tick()
     void apply_timezone(const std::string& iana_or_posix);
     void confirm_running_image_if_stable();
     bool _image_confirmed = false;

@@ -187,7 +187,9 @@ void Hal::startXiaozhi()
 
 
     // Start stackchan update task
-    xTaskCreatePinnedToCore(_stackchan_update_task, "stackchan", 4096, NULL, 3, NULL, 1);
+    // Chan: 6 KB, not 4 KB. ChanApp::tick() runs here (screen renders, JSON); the measured
+    // high-water mark at 4 KB was only 1.2-1.4 KB free (`stacks` on the debug console).
+    xTaskCreatePinnedToCore(_stackchan_update_task, "stackchan", 6144, NULL, 3, NULL, 1);
 
     hal_bridge::start_xiaozhi_app();
 }
