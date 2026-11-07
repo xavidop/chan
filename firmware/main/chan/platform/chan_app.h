@@ -8,6 +8,7 @@
 #include <chan/core/attention.h>
 #include <chan/core/config.h>
 #include <chan/core/gemini_messages.h>
+#include <chan/core/net_health.h>
 #include <chan/core/tools.h>
 #include <chan/core/sports.h>
 #include <chan/core/weather.h>
@@ -106,7 +107,9 @@ private:
     uint32_t _last_tap_ms = 0;
     uint32_t _last_attention_ms = 0;
     uint32_t _last_net_poll_ms = 0;
-    bool _net_online = true;
+    bool _net_online = true;       // Wi-Fi associated (gates the HTTP server and the network task)
+    bool _offline_shown = false;   // Signal::Offline is raised (no Wi-Fi, or the feeds keep failing)
+    FetchHealth _fetch_health;     // written by the network task
     int _quiet_override = -1;  // -1 auto, 0 force off, 1 force on (debug)
     float _voice_level = -1.0f;
     ToolRegistry _tools;

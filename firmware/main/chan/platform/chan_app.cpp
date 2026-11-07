@@ -235,15 +235,23 @@ void ChanApp::poll_network(uint32_t now_ms)
 {
     if (now_ms - _last_net_poll_ms < kNetPollMs) return;
     _last_net_poll_ms = now_ms;
-    const bool online = WifiManager::GetInstance().IsConnected();
-    if (online == _net_online) return;
-    _net_online = online;
-    if (online) {
+    const bool wifi = WifiManager::GetInstance().IsConnected();
+    if (wifi != _net_online) {
+        _net_online = wifi;
+        mclog::tagInfo(kTag, "wi-fi {}", wifi ? "connected" : "lost");
+    }
+    // Being associated is not being online: a router without uplink keeps the station happy
+    // while every fetch fails. Both count as offline for the LEDs and the face.
+    const bool feeds_down = _fetch_health.down();
+    const bool offline = !wifi || feeds_down;
+    if (offline == _offline_shown) return;
+    _offline_shown = offline;
+    if (offline) {
+        _attention.raise(Signal::Offline, now_ms);
+        mclog::tagWarn(kTag, "network offline ({})", !wifi ? "no wi-fi" : "feeds keep failing");
+    } else {
         _attention.clear(Signal::Offline);
         mclog::tagInfo(kTag, "network back online");
-    } else {
-        _attention.raise(Signal::Offline, now_ms);
-        mclog::tagWarn(kTag, "network offline");
     }
 }
 
@@ -531,10 +539,12 @@ void ChanApp::net_loop()
             JsonDocument doc(psram_allocator());
             std::string err;
             if (!http_get_json(ipwho_url(), doc, nullptr, err, 16 * 1024)) {
+                _fetch_health.record(false);
                 mclog::tagWarn(kTag, "location lookup failed: {}", err);
                 next_attempt_ms = now + kRetryMs;
                 continue;
             }
+            _fetch_health.record(true);
             loc = parse_ipwho(doc.as<JsonVariantConst>());
             if (!loc) {
                 mclog::tagWarn(kTag, "location response not usable");
@@ -562,10 +572,12 @@ void ChanApp::net_loop()
         JsonDocument doc(psram_allocator());
         std::string err;
         if (!http_get_json(open_meteo_url(loc->lat, loc->lon, _config.units), doc, nullptr, err, 32 * 1024)) {
+            _fetch_health.record(false);
             mclog::tagWarn(kTag, "weather fetch failed: {}", err);
             next_attempt_ms = now + kRetryMs;
             continue;
         }
+        _fetch_health.record(true);
         auto w = parse_open_meteo(doc.as<JsonVariantConst>());
         if (!w) {
             mclog::tagWarn(kTag, "weather response not usable");
@@ -632,6 +644,9 @@ void ChanApp::poll_sports(uint32_t now_ms)
         all.insert(all.end(), games.begin(), games.end());
         vTaskDelay(pdMS_TO_TICKS(300));
     }
+    // One league failing while another answers is the feed's problem, not an outage.
+    if (!fetched.empty()) _fetch_health.record(true);
+    else if (any_error) _fetch_health.record(false);
     std::vector<ScoreEvent> events;
     bool live = false, pending = false;
     if (!fetched.empty()) {
