@@ -12,9 +12,10 @@ namespace chan::platform {
 namespace {
 
 constexpr const char* kTag = "DebugConsole";
-// Debug commands run on this task (agent events, screen switches, JSON); at 4 KB the measured
-// minimum free stack was 1.2 KB, so 6 KB.
-constexpr uint32_t kReaderStackBytes = 6144;
+// Debug commands run on this task (agent events, screen switches, JSON); measured minimum free
+// at 4 KB: 1.2 KB. Internal RAM is the binding constraint on this board (raising this and the
+// stackchan stack to 6 KB starved the Gemini TLS session), so it stays at 4 KB.
+constexpr uint32_t kReaderStackBytes = 4096;
 std::function<void(std::string_view)> g_handler;
 TaskHandle_t g_reader = nullptr;
 

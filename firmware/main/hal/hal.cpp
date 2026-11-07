@@ -187,9 +187,11 @@ void Hal::startXiaozhi()
 
 
     // Start stackchan update task
-    // Chan: 6 KB, not 4 KB. ChanApp::tick() runs here (screen renders, JSON); the measured
-    // high-water mark at 4 KB was only 1.2-1.4 KB free (`stacks` on the debug console).
-    xTaskCreatePinnedToCore(_stackchan_update_task, "stackchan", 6144, NULL, 3, NULL, 1);
+    // Chan: ChanApp::tick() runs here (screen renders, JSON, the NVS writes that must not come
+    // from a PSRAM-stacked task). Measured minimum free at 4 KB: 1.2-1.4 KB (`stacks` on the
+    // debug console). Do not raise it: this stack is internal RAM, and 6 KB left mbedTLS unable
+    // to allocate for the Gemini TLS session ("esp-aes: Failed to allocate memory").
+    xTaskCreatePinnedToCore(_stackchan_update_task, "stackchan", 4096, NULL, 3, NULL, 1);
 
     hal_bridge::start_xiaozhi_app();
 }
