@@ -110,6 +110,14 @@ TEST_CASE("renudge fires once after delay")
     CHECK_FALSE(store.take_renudge(20000));
 }
 
+TEST_CASE("renudge of zero is disabled")
+{
+    AgentStore store(8, 60000, 0);
+    store.apply(ev("gemini", "g", "needs_attention"), 0);
+    CHECK_FALSE(store.take_renudge(0));
+    CHECK_FALSE(store.take_renudge(60000 - 1));
+}
+
 TEST_CASE("acknowledge stops renudge")
 {
     AgentStore store(8, 60000, 5000);

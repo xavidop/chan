@@ -97,3 +97,44 @@ TEST_CASE("parse_hex_color accepts # prefix and bare hex")
     CHECK(parse_hex_color("ee7203") == 0xEE7203);
     CHECK(parse_hex_color("nope") == 0);
 }
+
+TEST_CASE("numeric settings are clamped to their documented ranges")
+{
+    ChanConfig cfg;
+    std::string err;
+    const char* blob = R"({"env":{"WIFI_SSID":"s","GEMINI_API_KEY":"k","CHAN_AGENT_TOKEN":"t"},
+        "config":{"volume":250,"brightness":-5,"persona":{"chattiness":9},
+                  "gemini":{"sessionIdleSeconds":0},
+                  "agents":{"maxSessions":0,"staleMinutes":100000,"renudgeMinutes":-1}}})";
+    REQUIRE_MESSAGE(parse_config(blob, cfg, err), err);
+    CHECK(cfg.volume == 100);
+    CHECK(cfg.brightness == 0);
+    CHECK(cfg.chattiness == 2);
+    CHECK(cfg.gemini_idle_s == 5);
+    CHECK(cfg.agents_max_sessions == 1);
+    CHECK(cfg.agents_stale_min == 1440);
+    CHECK(cfg.agents_renudge_min == 0);
+
+    const char* high = R"({"env":{"WIFI_SSID":"s","GEMINI_API_KEY":"k","CHAN_AGENT_TOKEN":"t"},
+        "config":{"gemini":{"sessionIdleSeconds":9999},"agents":{"maxSessions":500,"renudgeMinutes":999}}})";
+    REQUIRE_MESSAGE(parse_config(high, cfg, err), err);
+    CHECK(cfg.gemini_idle_s == 600);
+    CHECK(cfg.agents_max_sessions == 32);
+    CHECK(cfg.agents_renudge_min == 120);
+}
+
+TEST_CASE("in-range numeric settings are kept as given")
+{
+    ChanConfig cfg;
+    std::string err;
+    const char* blob = R"({"env":{"WIFI_SSID":"s","GEMINI_API_KEY":"k","CHAN_AGENT_TOKEN":"t"},
+        "config":{"volume":0,"brightness":100,"gemini":{"sessionIdleSeconds":45},
+                  "agents":{"maxSessions":3,"staleMinutes":1,"renudgeMinutes":0}}})";
+    REQUIRE_MESSAGE(parse_config(blob, cfg, err), err);
+    CHECK(cfg.volume == 0);
+    CHECK(cfg.brightness == 100);
+    CHECK(cfg.gemini_idle_s == 45);
+    CHECK(cfg.agents_max_sessions == 3);
+    CHECK(cfg.agents_stale_min == 1);
+    CHECK(cfg.agents_renudge_min == 0);
+}

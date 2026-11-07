@@ -30,10 +30,10 @@ Keys end up in the robot's flash. Treat the device like a key holder (see [SECUR
 | `units` | `"metric"` | `metric` (°C) or `imperial` (°F) |
 | `hostname` | `"chan"` | mDNS/DHCP hostname → `chan.local` |
 | `persona.prompt` | | Free-text personality added to the system prompt |
-| `persona.chattiness` | `1` | `0` terse (one short sentence), `1` normal, `2` chatty |
+| `persona.chattiness` | `1` | `0` terse (one short sentence), `1` normal, `2` chatty (out-of-range values are clamped) |
 | `gemini.model` | `"gemini-3.8-live"` | Live API model id (`models/` prefix added by Chan). Must support `bidiGenerateContent` |
 | `gemini.voice` | `"Aoede"` | Prebuilt voice name; empty for the server default |
-| `gemini.sessionIdleSeconds` | `20` | Seconds of silence (nobody speaking, nothing playing) before the voice session closes |
+| `gemini.sessionIdleSeconds` | `20` | Seconds of silence (nobody speaking, nothing playing) before the voice session closes. Range 5–600 |
 | `quietHours.enabled` | `true` | Quiet hours mute sounds and voice wake and dim the LEDs; screens keep updating |
 | `quietHours.start` | `"23:00"` | Quiet hours start, `HH:MM` local time |
 | `quietHours.end` | `"07:00"` | Quiet hours end, `HH:MM`; the window may wrap midnight |
@@ -42,11 +42,14 @@ Keys end up in the robot's flash. Treat the device like a key holder (see [SECUR
 | `screens.agents` | `true` | Show the Agents screen in the swipe cycle |
 | `screens.sports` | `true` | Show the Sports screen and poll scores |
 | `screens.weather` | `true` | Show the Weather screen and the idle clock/weather on the face |
-| `agents.maxSessions` | `8` | Most agent sessions kept; the least recently updated is evicted |
-| `agents.staleMinutes` | `120` | Rows not updated for this long disappear |
-| `agents.renudgeMinutes` | `5` | One extra nudge if an alert is not acknowledged after this long |
+| `agents.maxSessions` | `8` | Most agent sessions kept (1–32); the least recently updated is evicted |
+| `agents.staleMinutes` | `120` | Rows not updated for this long disappear and stop alerting (1–1440) |
+| `agents.renudgeMinutes` | `5` | One extra nudge if an alert is not acknowledged after this long (0–120; `0` disables the re-nudge) |
 | `agents.colors` | Claude `#D97757`, Codex `#10A37F`, Gemini `#4285F4`, Copilot `#8957E5` | LED/row colour per agent name (`claude-code`, `codex`, `gemini`, `copilot`, or any name your hooks send) |
 | `teams` | `[]` | Array of teams to follow. Same shape as Dash: `key` (short id), `league` (ESPN slug such as `esp.1`, `usa.1`, `uefa.nations`, `nfl`, `nba`, `nhl`, or `mlb`), `name` (as the feed names it), `displayName`, `color`, `altColor` |
+
+Numbers outside their range are clamped to the nearest bound rather than rejected, so a typo
+cannot leave the robot silent or blinding.
 
 Leagues: soccer uses ESPN league slugs (`esp.1` La Liga, `eng.1` Premier League, `usa.1` MLS,
 `uefa.champions`, `uefa.nations`, …); `nfl`, `nba`, `nhl` use ESPN; `mlb` uses the MLB Stats API.

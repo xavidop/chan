@@ -33,6 +33,13 @@ bool bool_or(JsonVariantConst v, bool fallback)
     return v.is<bool>() ? v.as<bool>() : fallback;
 }
 
+// Integer setting clamped to [lo, hi]; the ranges are documented in docs/config.md.
+int int_in(JsonVariantConst v, int fallback, int lo, int hi)
+{
+    const int value = int_or(v, fallback);
+    return value < lo ? lo : value > hi ? hi : value;
+}
+
 }  // namespace
 
 int parse_hhmm(std::string_view s)
@@ -92,11 +99,11 @@ bool parse_config(std::string_view blob_json, ChanConfig& out, std::string& erro
     cfg.hostname = str_or(c["hostname"], cfg.hostname);
 
     cfg.persona_prompt = str_or(c["persona"]["prompt"], "");
-    cfg.chattiness     = int_or(c["persona"]["chattiness"], cfg.chattiness);
+    cfg.chattiness     = int_in(c["persona"]["chattiness"], cfg.chattiness, 0, 2);
 
     cfg.gemini_model  = str_or(c["gemini"]["model"], "");
     cfg.gemini_voice  = str_or(c["gemini"]["voice"], "");
-    cfg.gemini_idle_s = int_or(c["gemini"]["sessionIdleSeconds"], cfg.gemini_idle_s);
+    cfg.gemini_idle_s = int_in(c["gemini"]["sessionIdleSeconds"], cfg.gemini_idle_s, 5, 600);
 
     cfg.quiet.enabled = bool_or(c["quietHours"]["enabled"], cfg.quiet.enabled);
     if (c["quietHours"]["start"].is<const char*>()) {
@@ -108,16 +115,16 @@ bool parse_config(std::string_view blob_json, ChanConfig& out, std::string& erro
         if (v >= 0) cfg.quiet.end_min = v;
     }
 
-    cfg.volume     = int_or(c["volume"], cfg.volume);
-    cfg.brightness = int_or(c["brightness"], cfg.brightness);
+    cfg.volume     = int_in(c["volume"], cfg.volume, 0, 100);
+    cfg.brightness = int_in(c["brightness"], cfg.brightness, 0, 100);
 
     cfg.screen_agents  = bool_or(c["screens"]["agents"], cfg.screen_agents);
     cfg.screen_sports  = bool_or(c["screens"]["sports"], cfg.screen_sports);
     cfg.screen_weather = bool_or(c["screens"]["weather"], cfg.screen_weather);
 
-    cfg.agents_max_sessions = int_or(c["agents"]["maxSessions"], cfg.agents_max_sessions);
-    cfg.agents_stale_min    = int_or(c["agents"]["staleMinutes"], cfg.agents_stale_min);
-    cfg.agents_renudge_min  = int_or(c["agents"]["renudgeMinutes"], cfg.agents_renudge_min);
+    cfg.agents_max_sessions = int_in(c["agents"]["maxSessions"], cfg.agents_max_sessions, 1, 32);
+    cfg.agents_stale_min    = int_in(c["agents"]["staleMinutes"], cfg.agents_stale_min, 1, 24 * 60);
+    cfg.agents_renudge_min  = int_in(c["agents"]["renudgeMinutes"], cfg.agents_renudge_min, 0, 120);
 
     cfg.agent_colors = kDefaultAgentColors;
     for (JsonPairConst kv : c["agents"]["colors"].as<JsonObjectConst>()) {

@@ -149,6 +149,7 @@ bool AgentStore::any_unacknowledged_attention(uint32_t now_ms) const
 
 bool AgentStore::take_renudge(uint32_t now_ms)
 {
+    if (_renudge_ms == 0) return false;  // re-nudge disabled
     for (auto& e : _entries) {
         if (e.row.state == AgentState::NeedsAttention && !e.row.acknowledged && !e.renudged && !is_stale(e, now_ms) &&
             now_ms - e.row.since_ms >= _renudge_ms) {

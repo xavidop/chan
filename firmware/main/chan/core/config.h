@@ -36,13 +36,14 @@ struct ChanConfig {
     std::string persona_prompt;
     std::string gemini_model;
     std::string gemini_voice;
-    int chattiness = 1;
-    int gemini_idle_s = 20;
-    int volume = 70;
-    int brightness = 70;
-    int agents_max_sessions = 8;
-    int agents_stale_min = 120;
-    int agents_renudge_min = 5;
+    // Integers are clamped by parse_config to the ranges in docs/config.md.
+    int chattiness = 1;         // 0..2
+    int gemini_idle_s = 20;     // 5..600
+    int volume = 70;            // 0..100
+    int brightness = 70;        // 0..100
+    int agents_max_sessions = 8;  // 1..32
+    int agents_stale_min = 120;   // 1..1440
+    int agents_renudge_min = 5;   // 0..120, 0 = no re-nudge
     QuietHours quiet;
     bool screen_agents = true, screen_sports = true, screen_weather = true;
     std::map<std::string, uint32_t> agent_colors;

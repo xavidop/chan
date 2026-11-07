@@ -47,6 +47,7 @@ public:
     // Stale rows (not updated for stale_ms) are ignored: they are not shown, so they must not alert.
     bool any_unacknowledged_attention(uint32_t now_ms) const;
     // True exactly once per unacknowledged, non-stale alert, renudge_ms after it was raised.
+    // renudge_ms == 0 disables the re-nudge.
     bool take_renudge(uint32_t now_ms);
     void acknowledge_all();
     // {"agents":[{agent,session,project,state,message,seconds_ago,acknowledged}…]}
