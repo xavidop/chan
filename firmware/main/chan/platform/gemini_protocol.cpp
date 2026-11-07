@@ -64,16 +64,16 @@ bool GeminiProtocol::OpenAudioChannel()
     input_text_.clear();
 
     auto* network = Board::GetInstance().GetNetwork();
-    websocket_ = network->CreateWebSocket(1);
-    if (!websocket_) {
+    std::unique_ptr<WebSocket> ws = network->CreateWebSocket(1);
+    if (!ws) {
         SetError("Failed to create websocket");
         return false;
     }
-    websocket_->SetReceiveBufferSize(kReceiveBufferBytes);
-    websocket_->OnError([this](const NetworkError& error) {
+    ws->SetReceiveBufferSize(kReceiveBufferBytes);
+    ws->OnError([this](const NetworkError& error) {
         ESP_LOGE(TAG, "websocket error: %s", error.ToString().c_str());
     });
-    websocket_->OnData([this](const char* data, size_t len, bool binary) {
+    ws->OnData([this](const char* data, size_t len, bool binary) {
         last_incoming_time_ = std::chrono::steady_clock::now();
         // The Live API sends its JSON messages as binary WebSocket frames; parse either kind.
         (void)binary;
@@ -84,7 +84,7 @@ bool GeminiProtocol::OpenAudioChannel()
         }
         HandleServerMessage(std::string_view(data, len));
     });
-    websocket_->OnDisconnected([this]() {
+    ws->OnDisconnected([this]() {
         ESP_LOGI(TAG, "disconnected");
         opened_ = false;
         speaking_ = false;
@@ -96,24 +96,27 @@ bool GeminiProtocol::OpenAudioChannel()
     last_stats_ms_ = GetHAL().millis();
     const std::string url = build_ws_url(app.config().gemini_api_key);
     ESP_LOGI(TAG, "connecting to wss://%s%s?key=***", kGeminiLiveHost, kGeminiLivePath);
-    if (auto connected = websocket_->Connect(url.c_str()); !connected) {
+    // Connect blocks for up to 10 s: do it before the socket is published to the other tasks.
+    if (auto connected = ws->Connect(url.c_str()); !connected) {
         ESP_LOGE(TAG, "connect failed: %s", connected.error().ToString().c_str());
         SetError("Unable to reach Gemini", connected.error().ToString());
-        websocket_.reset();
-        return false;
+        return false;  // ws goes out of scope: disconnects and joins its receive task
+    }
+    xEventGroupClearBits(events_, kSetupCompleteBit);
+    {
+        std::lock_guard<std::mutex> lock(ws_mutex_);
+        websocket_ = std::move(ws);
     }
 
-    xEventGroupClearBits(events_, kSetupCompleteBit);
     if (!SendText(build_setup(app.buildGeminiSetup()))) {
-        websocket_.reset();
+        TakeWebSocket().reset();
         return false;
     }
     const EventBits_t bits = xEventGroupWaitBits(events_, kSetupCompleteBit, pdTRUE, pdFALSE, pdMS_TO_TICKS(kSetupTimeoutMs));
     if (!(bits & kSetupCompleteBit)) {
         ESP_LOGE(TAG, "no setupComplete within %u ms", static_cast<unsigned>(kSetupTimeoutMs));
         SetError("Gemini did not accept the session");
-        websocket_->Close();
-        websocket_.reset();
+        if (auto dying = TakeWebSocket()) dying->Close();
         return false;
     }
 
@@ -127,6 +130,12 @@ bool GeminiProtocol::OpenAudioChannel()
     return true;
 }
 
+std::unique_ptr<WebSocket> GeminiProtocol::TakeWebSocket()
+{
+    std::lock_guard<std::mutex> lock(ws_mutex_);
+    return std::move(websocket_);
+}
+
 void GeminiProtocol::CloseAudioChannel(bool)
 {
     const bool was_open = opened_.exchange(false);
@@ -135,9 +144,11 @@ void GeminiProtocol::CloseAudioChannel(bool)
         std::lock_guard<std::mutex> lock(queue_mutex_);
         audio_queue_.clear();
     }
-    if (websocket_) {
-        websocket_->Close();  // OnDisconnected reports the closed channel
-        websocket_.reset();
+    // Unpublish first (any SendText in flight finishes or sees null), then tear down unlocked:
+    // the destructor joins the receive task, which must be free to return from SendText.
+    if (auto dying = TakeWebSocket()) {
+        dying->Close();  // OnDisconnected reports the closed channel
+        dying.reset();
     } else if (was_open && on_audio_channel_closed_) {
         on_audio_channel_closed_();
     }
@@ -145,11 +156,14 @@ void GeminiProtocol::CloseAudioChannel(bool)
 
 bool GeminiProtocol::IsAudioChannelOpened() const
 {
-    return opened_ && websocket_ && websocket_->IsConnected() && !error_occurred_ && !IsTimeout();
+    if (!opened_ || error_occurred_ || IsTimeout()) return false;
+    std::lock_guard<std::mutex> lock(ws_mutex_);
+    return websocket_ && websocket_->IsConnected();
 }
 
 bool GeminiProtocol::SendText(const std::string& text)
 {
+    std::lock_guard<std::mutex> lock(ws_mutex_);
     if (!websocket_ || !websocket_->IsConnected()) return false;
     if (!websocket_->Send(text)) {
         SetError("Failed to send to Gemini");

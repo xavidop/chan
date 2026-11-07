@@ -60,7 +60,13 @@ private:
     void FeedOne(std::vector<uint8_t> pcm);
     void CheckIdle();
 
+    // websocket_ is touched from three tasks: the audio task (SendAudio → CheckIdle → close), the
+    // socket's own receive task (tool responses) and the Application loop (close). The pointer is
+    // only read or swapped under ws_mutex_; the socket itself is destroyed outside the lock,
+    // because destroying it joins the receive task, which may be waiting for that same lock.
+    mutable std::mutex ws_mutex_;
     std::unique_ptr<WebSocket> websocket_;
+    std::unique_ptr<WebSocket> TakeWebSocket();
     EventGroupHandle_t events_;
     SemaphoreHandle_t audio_available_;
     TaskHandle_t feeder_ = nullptr;
