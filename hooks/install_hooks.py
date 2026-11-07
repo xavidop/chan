@@ -84,18 +84,19 @@ def install_copilot(hooks_dir: pathlib.Path, dry: bool) -> str:
     return f"Copilot CLI ({path}): written ({len(COPILOT_EVENTS)} events)"
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     home = pathlib.Path.home()
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--claude", default=str(home / ".claude/settings.json"))
     ap.add_argument("--codex", default=str(home / ".codex/config.toml"))
     ap.add_argument("--copilot-dir", default=str(home / ".copilot/hooks"))
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
     if not NOTIFY.exists():
         print(f"missing {NOTIFY}", file=sys.stderr)
         return 2
-    FANOUT.chmod(0o755)
+    if not args.dry_run:
+        FANOUT.chmod(0o755)
     for line in (install_claude(pathlib.Path(args.claude), args.dry_run),
                  install_codex(pathlib.Path(args.codex), args.dry_run),
                  install_copilot(pathlib.Path(args.copilot_dir), args.dry_run)):

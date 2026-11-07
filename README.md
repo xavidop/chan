@@ -61,8 +61,8 @@ Going back to stock: `python3 scripts/chan.py restore-stock --port /dev/cu.usbmo
 
 ## Status
 
-Working end to end on one robot (voice, tools, agents, sports, weather, OTA). Rough edges are listed in
-the design doc's rulings and in open issues. Private while it settles; MIT once public.
+Working end to end on one robot (voice, tools, agents, sports, weather, OTA). Rough edges are tracked
+in open issues. Private while it settles; MIT once public.
 
 ## Credits
 

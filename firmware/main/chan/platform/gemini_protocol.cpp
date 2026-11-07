@@ -80,7 +80,7 @@ bool GeminiProtocol::OpenAudioChannel()
         recv_msgs_++;
         if (debug_msgs_left_ > 0) {
             --debug_msgs_left_;
-            ESP_LOGI(TAG, "<- %.*s", static_cast<int>(len > 120 ? 120 : len), data);
+            ESP_LOGD(TAG, "<- %.*s", static_cast<int>(len > 120 ? 120 : len), data);
         }
         HandleServerMessage(std::string_view(data, len));
     });
@@ -292,12 +292,12 @@ void GeminiProtocol::HandleServerMessage(std::string_view json)
             last_activity_ms_ = GetHAL().millis();
             if (!msg.input_text.empty()) {
                 input_text_ += msg.input_text;
-                ESP_LOGI(TAG, ">> %s", input_text_.c_str());
+                ESP_LOGD(TAG, ">> %s", input_text_.c_str());
                 EmitStt(input_text_);
             }
             if (!msg.output_text.empty()) {
                 output_text_ += msg.output_text;
-                ESP_LOGI(TAG, "<< %s", output_text_.c_str());
+                ESP_LOGD(TAG, "<< %s", output_text_.c_str());
                 EmitTts("sentence_start", &output_text_);
             }
             return;

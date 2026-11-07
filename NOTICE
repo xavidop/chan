@@ -29,4 +29,5 @@ Stack-chan community, notably Takao Akaki (@mongonta555).
 
 ## Sound effects
 
-See `firmware/main/assets/sfx/SOURCES.md` (added when clips are introduced).
+The clips in `firmware/main/assets/sfx/` are synthesized by `scripts/make_sfx.py` (no
+third-party audio); `firmware/main/assets/sfx/SOURCES.md` lists them.
