@@ -68,9 +68,9 @@ TEST_CASE("needs_attention reports change once")
     CHECK(store.apply(ev("claude-code", "a", "working"), 1000) == Change::Other);
     CHECK(store.apply(ev("claude-code", "a", "needs_attention"), 2000) == Change::BecameNeedsAttention);
     CHECK(store.apply(ev("claude-code", "a", "needs_attention"), 3000) == Change::None);
-    CHECK(store.any_unacknowledged_attention());
+    CHECK(store.any_unacknowledged_attention(3000));
     CHECK(store.apply(ev("claude-code", "a", "done"), 4000) == Change::Other);
-    CHECK_FALSE(store.any_unacknowledged_attention());
+    CHECK_FALSE(store.any_unacknowledged_attention(4000));
 }
 
 TEST_CASE("ended removes row")
@@ -115,7 +115,7 @@ TEST_CASE("acknowledge stops renudge")
     AgentStore store(8, 60000, 5000);
     store.apply(ev("gemini", "g", "needs_attention"), 0);
     store.acknowledge_all();
-    CHECK_FALSE(store.any_unacknowledged_attention());
+    CHECK_FALSE(store.any_unacknowledged_attention(0));
     CHECK_FALSE(store.take_renudge(6000));
     auto rows = store.rows(6000);
     REQUIRE(rows.size() == 1);
@@ -148,4 +148,14 @@ TEST_CASE("to_json lists rows with state names")
     CHECK((doc["agents"][0]["project"] == "dash"));
     CHECK((doc["agents"][0]["state"] == "needs_attention"));
     CHECK((doc["agents"][0]["seconds_ago"] == 30));
+}
+
+TEST_CASE("stale needs_attention rows do not keep the alert up")
+{
+    AgentStore store(8, 1000, 5000);
+    store.apply(ev("codex", "s1", "needs_attention"), 0);
+    CHECK(store.any_unacknowledged_attention(999));
+    CHECK(store.rows(1000).empty());
+    CHECK_FALSE(store.any_unacknowledged_attention(1000));
+    CHECK_FALSE(store.take_renudge(5000));
 }

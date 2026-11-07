@@ -44,8 +44,9 @@ public:
     Change apply(const AgentEvent& e, uint32_t now_ms);
     // Rows that are not stale, needs-attention first, then most recently updated first.
     std::vector<AgentRow> rows(uint32_t now_ms) const;
-    bool any_unacknowledged_attention() const;
-    // True exactly once per unacknowledged alert, renudge_ms after it was raised.
+    // Stale rows (not updated for stale_ms) are ignored: they are not shown, so they must not alert.
+    bool any_unacknowledged_attention(uint32_t now_ms) const;
+    // True exactly once per unacknowledged, non-stale alert, renudge_ms after it was raised.
     bool take_renudge(uint32_t now_ms);
     void acknowledge_all();
     // {"agents":[{agent,session,project,state,message,seconds_ago,acknowledged}…]}
@@ -57,6 +58,7 @@ private:
         uint32_t updated_ms = 0;
         bool renudged = false;
     };
+    bool is_stale(const Entry& e, uint32_t now_ms) const;
     std::vector<Entry> _entries;
     int _max_sessions;
     uint32_t _stale_ms;

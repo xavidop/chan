@@ -118,6 +118,7 @@ private:
     std::unique_ptr<AgentStore> _agents;
     AgentsScreen _agents_screen;
     bool _agents_dirty = true;
+    bool _agent_alert_from_store = false;  // AgentAlert was raised by an agent row (not the debug console)
     uint32_t _agents_rendered_ms = 0;
     bool _http_started = false;
     static void net_task(void* arg);

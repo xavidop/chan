@@ -75,9 +75,11 @@ void ChanApp::onAgentEvent(const AgentEvent& event)
         auto it = _config.agent_colors.find(event.agent);
         const uint32_t color = it != _config.agent_colors.end() ? it->second : Attention::kDefaultAgentColor;
         _attention.raise(Signal::AgentAlert, now, color);
+        _agent_alert_from_store = true;
         if (!isQuiet()) expressions_face_user();
-    } else if (!_agents->any_unacknowledged_attention()) {
+    } else if (!_agents->any_unacknowledged_attention(now)) {
         _attention.clear(Signal::AgentAlert);
+        _agent_alert_from_store = false;
     }
     _agents_dirty = true;
 }
@@ -182,6 +184,16 @@ void ChanApp::tick()
         _attention.queue_sound(Sound::Nudge);
         if (!isQuiet()) expressions_face_user();
     }
+    // An alert whose rows all went stale (agents.staleMinutes) has nothing actionable behind it:
+    // the Agents screen hides those rows, so the LEDs must stop asking for attention too.
+    if (_agent_alert_from_store && _agents && !_agents->any_unacknowledged_attention(now)) {
+        _agent_alert_from_store = false;
+        if (_attention.is_active(Signal::AgentAlert, now)) {
+            _attention.clear(Signal::AgentAlert);
+            _agents_dirty = true;
+            mclog::tagInfo(kTag, "agent alert dropped: rows went stale");
+        }
+    }
     refresh_agents_screen(now, false);
     refresh_sports_screen(now, false);
     refresh_weather_screen(now, false);
@@ -269,7 +281,7 @@ void ChanApp::onXiaozhiStatus(const char* status)
         _attention.clear(Signal::Thinking);
         _attention.clear(Signal::Speaking);
         _attention.raise(Signal::Listening, now);
-        if (_agents && _agents->any_unacknowledged_attention()) {
+        if (_agents && _agents->any_unacknowledged_attention(now)) {
             _agents->acknowledge_all();
             _attention.acknowledge();
             _agents_dirty = true;

@@ -68,6 +68,11 @@ AgentStore::AgentStore(int max_sessions, uint32_t stale_ms, uint32_t renudge_ms)
 {
 }
 
+bool AgentStore::is_stale(const Entry& e, uint32_t now_ms) const
+{
+    return now_ms - e.updated_ms >= _stale_ms;
+}
+
 Change AgentStore::apply(const AgentEvent& e, uint32_t now_ms)
 {
     auto it = std::find_if(_entries.begin(), _entries.end(),
@@ -120,7 +125,7 @@ std::vector<AgentRow> AgentStore::rows(uint32_t now_ms) const
 {
     std::vector<const Entry*> live;
     for (const auto& e : _entries) {
-        if (now_ms - e.updated_ms < _stale_ms) live.push_back(&e);
+        if (!is_stale(e, now_ms)) live.push_back(&e);
     }
     std::sort(live.begin(), live.end(), [](const Entry* a, const Entry* b) {
         const bool aa = a->row.state == AgentState::NeedsAttention;
@@ -134,10 +139,10 @@ std::vector<AgentRow> AgentStore::rows(uint32_t now_ms) const
     return out;
 }
 
-bool AgentStore::any_unacknowledged_attention() const
+bool AgentStore::any_unacknowledged_attention(uint32_t now_ms) const
 {
     for (const auto& e : _entries) {
-        if (e.row.state == AgentState::NeedsAttention && !e.row.acknowledged) return true;
+        if (e.row.state == AgentState::NeedsAttention && !e.row.acknowledged && !is_stale(e, now_ms)) return true;
     }
     return false;
 }
@@ -145,7 +150,7 @@ bool AgentStore::any_unacknowledged_attention() const
 bool AgentStore::take_renudge(uint32_t now_ms)
 {
     for (auto& e : _entries) {
-        if (e.row.state == AgentState::NeedsAttention && !e.row.acknowledged && !e.renudged &&
+        if (e.row.state == AgentState::NeedsAttention && !e.row.acknowledged && !e.renudged && !is_stale(e, now_ms) &&
             now_ms - e.row.since_ms >= _renudge_ms) {
             e.renudged = true;
             return true;
