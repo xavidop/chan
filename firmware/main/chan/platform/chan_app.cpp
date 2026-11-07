@@ -10,6 +10,7 @@
 #include <chan/platform/expressions.h>
 #include <chan/platform/leds.h>
 #include <chan/platform/sounds.h>
+#include <application.h>
 #include <hal/board/hal_bridge.h>
 #include <hal/hal.h>
 #include <mooncake_log.h>
@@ -526,6 +527,12 @@ std::string ChanApp::weatherJson()
     return weather_json(*loc, *w, _config.units, localTimeHHMM());
 }
 
+bool ChanApp::voiceSessionActive() const
+{
+    const DeviceState st = Application::GetInstance().GetDeviceState();
+    return st == kDeviceStateConnecting || st == kDeviceStateListening || st == kDeviceStateSpeaking;
+}
+
 void ChanApp::net_task(void* arg)
 {
     static_cast<ChanApp*>(arg)->net_loop();
@@ -540,6 +547,17 @@ void ChanApp::net_loop()
     while (true) {
         vTaskDelay(pdMS_TO_TICKS(2000));
         if (!_net_online || _ota_in_progress) continue;
+        // The Gemini TLS session and a 200 KB scoreboard download do not fit in internal RAM
+        // together ("esp-aes: Failed to allocate memory"): the feeds wait for the conversation.
+        if (voiceSessionActive()) {
+            if (!_feeds_paused) mclog::tagInfo(kTag, "feeds paused: voice session");
+            _feeds_paused = true;
+            continue;
+        }
+        if (_feeds_paused) {
+            _feeds_paused = false;
+            mclog::tagInfo(kTag, "feeds resumed");
+        }
         const uint32_t now = GetHAL().millis();
         bool have_location = false;
         {
@@ -655,8 +673,12 @@ void ChanApp::poll_sports(uint32_t now_ms)
     for (const auto& t : _config.teams) leagues.insert(t.league);
     std::vector<Game> all;
     std::set<std::string> fetched;
-    bool any_error = false;
+    bool any_error = false, interrupted = false;
     for (const auto& league : leagues) {
+        if (voiceSessionActive()) {  // a wake word mid-poll: finish early, retry soon
+            interrupted = true;
+            break;
+        }
         std::string err;
         auto games = fetch_league(league, 0, err);
         if (!err.empty()) {
@@ -685,7 +707,7 @@ void ChanApp::poll_sports(uint32_t now_ms)
         }
     }
     const uint32_t interval = live ? 15000u : pending ? 600000u : 3600000u;
-    _next_sports_poll_ms = now_ms + (any_error && all.empty() ? 60000u : interval);
+    _next_sports_poll_ms = now_ms + (interrupted ? 30000u : any_error && all.empty() ? 60000u : interval);
     mclog::tagInfo(kTag, "sports: {} games, {} followed ({}), {} tracked, next poll in {} s", all.size(), _followed_games.size(),
                    live ? "live" : pending ? "upcoming" : "quiet", _scores.tracked_count(), (_next_sports_poll_ms - now_ms) / 1000);
     for (const auto& e : events) onScoreEvent(e);
@@ -716,6 +738,11 @@ void ChanApp::sports_lookback()
     std::set<std::string> leagues;
     for (const auto& t : _config.teams) leagues.insert(t.league);
     for (const auto& league : leagues) {
+        if (voiceSessionActive()) {  // finish another day: what was fetched so far is kept
+            _lookback_yday = -1;
+            mclog::tagInfo(kTag, "lookback postponed: voice session");
+            return;
+        }
         for (int day = 1; day <= 3; ++day) {
             std::map<std::string, Game> last;
             {

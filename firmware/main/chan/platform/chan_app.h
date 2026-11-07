@@ -88,6 +88,9 @@ public:
     // While a firmware upload runs, the network task stays quiet.
     void setOtaInProgress(bool on) { _ota_in_progress = on; }
     bool otaInProgress() const { return _ota_in_progress; }
+    // A voice session is connecting, listening or speaking. The network task does not start
+    // feed fetches meanwhile: their 100-200 KB downloads leave mbedTLS without internal RAM.
+    bool voiceSessionActive() const;
 
     // Agent status (from the HTTP API; safe from any task).
     void onAgentEvent(const AgentEvent& event);
@@ -112,6 +115,7 @@ private:
     uint32_t _last_net_poll_ms = 0;
     bool _net_online = true;       // Wi-Fi associated (gates the HTTP server and the network task)
     bool _offline_shown = false;   // Signal::Offline is raised (no Wi-Fi, or the feeds keep failing)
+    bool _feeds_paused = false;    // network task: fetches are paused for a voice session (log once)
     FetchHealth _fetch_health;     // written by the network task
     int _quiet_override = -1;  // -1 auto, 0 force off, 1 force on (debug)
     float _voice_level = -1.0f;
