@@ -5,6 +5,23 @@ on:
   pull_request:
 
 jobs:
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Secrets and config must not be tracked
+        run: |
+          for f in .env config.json; do
+            if git ls-files --error-unmatch "$f" >/dev/null 2>&1; then echo "::error::$f is tracked"; exit 1; fi
+          done
+          if git ls-files backup | grep -q .; then echo "::error::backup/ is tracked"; exit 1; fi
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   host-tests:
     name: Host tests (C++ core + Python tools)
     runs-on: ubuntu-latest
