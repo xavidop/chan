@@ -357,9 +357,31 @@ std::string score_line(Sport sport, int points)
 
 std::vector<ScoreEvent> ScoreTracker::update(const std::vector<Game>& games, const std::vector<Team>& followed)
 {
+    std::set<std::string> leagues;
+    for (const auto& g : games) leagues.insert(g.league);
+    return update(games, followed, leagues);
+}
+
+std::vector<ScoreEvent> ScoreTracker::update(const std::vector<Game>& games, const std::vector<Team>& followed,
+                                             const std::set<std::string>& fetched_leagues)
+{
     _followed = followed;
+    auto involves_followed = [&](const Game& g) {
+        for (const auto& t : followed) {
+            if (game_involves(g, t)) return true;
+        }
+        return false;
+    };
+    // Drop games of successfully fetched leagues that this snapshot no longer lists.
+    std::set<std::string> listed;
+    for (const auto& g : games) listed.insert(g.id);
+    for (auto it = _games.begin(); it != _games.end();) {
+        if (fetched_leagues.count(it->second.league) && !listed.count(it->first)) it = _games.erase(it);
+        else ++it;
+    }
     std::vector<ScoreEvent> events;
     for (const auto& g : games) {
+        if (!involves_followed(g)) continue;
         auto it = _games.find(g.id);
         if (it != _games.end()) {
             const Game& prev = it->second;

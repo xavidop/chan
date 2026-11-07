@@ -53,6 +53,10 @@ bool GeminiProtocol::OpenAudioChannel()
         SetError("Gemini API key missing", "set GEMINI_API_KEY in .env and run flash-config");
         return false;
     }
+    if (app.isQuiet()) {
+        ESP_LOGI(TAG, "quiet hours: not opening a voice session");
+        return false;  // no alert: the Application just returns to idle
+    }
     error_occurred_ = false;
     go_away_ = false;
     speaking_ = false;

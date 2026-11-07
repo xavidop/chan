@@ -123,6 +123,8 @@ private:
     static void net_task(void* arg);
     void net_loop();
     void apply_timezone(const std::string& iana_or_posix);
+    void confirm_running_image_if_stable();
+    bool _image_confirmed = false;
     FaceOverlay _face_overlay;
     mutable std::mutex _wx_mutex;
     std::optional<Location> _loc;

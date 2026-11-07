@@ -320,6 +320,33 @@ TEST_CASE("urls")
     CHECK(mlb_schedule_url("2026-11-05") == "http://statsapi.mlb.com/api/v1/schedule?sportId=1&date=2026-11-05&hydrate=linescore");
 }
 
+TEST_CASE("games missing from a successful snapshot are dropped")
+{
+    ScoreTracker t;
+    std::vector<Team> teams{team("valencia", "esp.1", "Valencia"), team("raptors", "nba", "Toronto Raptors")};
+    t.update({game("1", "esp.1", "Real Madrid", 0, "Valencia", 0), game("n1", "nba", "Toronto Raptors", 50, "Boston", 48)}, teams,
+             {"esp.1", "nba"});
+    CHECK(t.followed_games().size() == 2);
+    // next poll: esp.1 fetched fine but the game is no longer listed (ESPN's day rolled over); nba fetch failed
+    t.update({}, teams, {"esp.1"});
+    auto fg = t.followed_games();
+    REQUIRE(fg.size() == 1);
+    CHECK(fg[0].id == "n1");  // kept: its league was not fetched this time
+    CHECK(t.tracked_count() == 1);
+    // a league fetched with zero games clears its stale (phantom live) rows too
+    t.update({}, teams, {"nba"});
+    CHECK(t.followed_games().empty());
+    CHECK(t.tracked_count() == 0);
+}
+
+TEST_CASE("unfollowed games are not retained")
+{
+    ScoreTracker t;
+    std::vector<Team> teams{team("valencia", "esp.1", "Valencia")};
+    t.update({game("9", "esp.1", "Sevilla", 0, "Betis", 0), game("1", "esp.1", "Real Madrid", 0, "Valencia", 0)}, teams, {"esp.1"});
+    CHECK(t.tracked_count() == 1);  // only Valencia's game is worth remembering
+}
+
 TEST_CASE("games json for the model")
 {
     ScoreTracker t;

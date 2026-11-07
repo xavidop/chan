@@ -15,6 +15,6 @@ ArduinoJson::Allocator* psram_allocator();
 // and parses it into `out`, applying `filter` when given (ArduinoJson DeserializationOption::Filter)
 // so large feeds only keep the fields we need. Returns false with `error` set otherwise.
 bool http_get_json(const std::string& url, JsonDocument& out, const JsonDocument* filter, std::string& error,
-                   size_t max_bytes = 512 * 1024);
+                   size_t max_bytes = 2 * 1024 * 1024);
 
 }  // namespace chan::platform

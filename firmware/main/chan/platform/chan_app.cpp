@@ -20,6 +20,7 @@
 #include <freertos/task.h>
 #include <freertos/idf_additions.h>
 #include <esp_heap_caps.h>
+#include <esp_ota_ops.h>
 
 #include <algorithm>
 #include <set>
@@ -74,7 +75,7 @@ void ChanApp::onAgentEvent(const AgentEvent& event)
         auto it = _config.agent_colors.find(event.agent);
         const uint32_t color = it != _config.agent_colors.end() ? it->second : Attention::kDefaultAgentColor;
         _attention.raise(Signal::AgentAlert, now, color);
-        expressions_face_user();
+        if (!isQuiet()) expressions_face_user();
     } else if (!_agents->any_unacknowledged_attention()) {
         _attention.clear(Signal::AgentAlert);
     }
@@ -165,6 +166,7 @@ void ChanApp::onXiaozhiReady()
 void ChanApp::tick()
 {
     if (!_ui_ready) return;
+    confirm_running_image_if_stable();
     if (_shell.takeSettingsRequest()) {
         mclog::tagInfo(kTag, "opening settings");
         GetHAL().requestWarmReboot(kSettingsWarmBootTarget);  // never returns
@@ -178,7 +180,7 @@ void ChanApp::tick()
     if (_agents && _agents->take_renudge(now)) {
         mclog::tagInfo(kTag, "agent re-nudge");
         _attention.queue_sound(Sound::Nudge);
-        expressions_face_user();
+        if (!isQuiet()) expressions_face_user();
     }
     refresh_agents_screen(now, false);
     refresh_sports_screen(now, false);
@@ -308,7 +310,7 @@ void ChanApp::celebrate(uint32_t team_color, uint32_t alt_color, bool horn)
     const uint32_t now = GetHAL().millis();
     _attention.raise(Signal::Celebrate, now, team_color, alt_color);
     if (horn) _attention.queue_sound(Sound::GoalHorn);
-    expressions_dance();
+    if (!isQuiet()) expressions_dance();
 }
 
 void ChanApp::sulk()
@@ -321,7 +323,7 @@ void ChanApp::agentAlert(uint32_t agent_color)
 {
     LvglLockGuard lock;
     _attention.raise(Signal::AgentAlert, GetHAL().millis(), agent_color);
-    expressions_face_user();
+    if (!isQuiet()) expressions_face_user();
 }
 
 void ChanApp::acknowledge()
@@ -431,9 +433,24 @@ void ChanApp::register_tools()
                [this](const std::string&) -> std::string { return weatherJson(); });
 }
 
+void ChanApp::confirm_running_image_if_stable()
+{
+    // With rollback enabled, a freshly updated image is only PENDING_VERIFY until something
+    // confirms it — otherwise the next reboot silently goes back to the previous firmware.
+    // Being up for 30 s with the UI running, Wi-Fi connected and the config loaded is the proof.
+    if (_image_confirmed || !_has_config || !_net_online || GetHAL().millis() < 30000) return;
+    _image_confirmed = true;
+    const esp_partition_t* running = esp_ota_get_running_partition();
+    esp_ota_img_states_t state;
+    if (running && esp_ota_get_state_partition(running, &state) == ESP_OK && state == ESP_OTA_IMG_PENDING_VERIFY) {
+        esp_ota_mark_app_valid_cancel_rollback();
+        mclog::tagInfo(kTag, "firmware image confirmed (rollback cancelled)");
+    }
+}
+
 void ChanApp::apply_timezone(const std::string& iana_or_posix)
 {
-    const std::string posix = iana_or_posix.find('/') != std::string::npos ? posix_tz_for(iana_or_posix) : iana_or_posix;
+    const std::string posix = looks_like_iana(iana_or_posix) ? posix_tz_for(iana_or_posix) : iana_or_posix;
     GetHAL().setTimezone(posix);
     mclog::tagInfo(kTag, "timezone {} -> {}", iana_or_posix, posix);
 }
@@ -477,12 +494,14 @@ void ChanApp::net_loop()
         vTaskDelay(pdMS_TO_TICKS(2000));
         if (!_net_online || _ota_in_progress) continue;
         const uint32_t now = GetHAL().millis();
-        bool have_weather = false;
+        bool have_location = false;
         {
             std::lock_guard<std::mutex> lock(_wx_mutex);
-            have_weather = _weather.has_value();
+            have_location = _loc.has_value();
         }
-        if (have_weather) {  // cheap things first: the face shows the forecast within seconds
+        // Location first (it is what sets the clock's timezone and takes one tiny request); sports
+        // never wait on the weather itself.
+        if (have_location || GetHAL().millis() > 60000) {
             poll_sports(now);
             sports_lookback();
         }
@@ -584,6 +603,7 @@ void ChanApp::poll_sports(uint32_t now_ms)
     std::set<std::string> leagues;
     for (const auto& t : _config.teams) leagues.insert(t.league);
     std::vector<Game> all;
+    std::set<std::string> fetched;
     bool any_error = false;
     for (const auto& league : leagues) {
         std::string err;
@@ -593,14 +613,15 @@ void ChanApp::poll_sports(uint32_t now_ms)
             mclog::tagWarn(kTag, "sports {}: {}", league, err);
             continue;
         }
+        fetched.insert(league);
         all.insert(all.end(), games.begin(), games.end());
         vTaskDelay(pdMS_TO_TICKS(300));
     }
     std::vector<ScoreEvent> events;
     bool live = false, pending = false;
-    if (!all.empty() || !any_error) {
+    if (!fetched.empty()) {
         std::lock_guard<std::mutex> lock(_wx_mutex);
-        events = _scores.update(all, _config.teams);
+        events = _scores.update(all, _config.teams, fetched);
         _followed_games = _scores.followed_games();
         _last_results = _scores.last_results();
         _sports_dirty = true;
@@ -611,8 +632,8 @@ void ChanApp::poll_sports(uint32_t now_ms)
     }
     const uint32_t interval = live ? 15000u : pending ? 600000u : 3600000u;
     _next_sports_poll_ms = now_ms + (any_error && all.empty() ? 60000u : interval);
-    mclog::tagInfo(kTag, "sports: {} games, {} followed ({}), next poll in {} s", all.size(), _followed_games.size(),
-                   live ? "live" : pending ? "upcoming" : "quiet", (_next_sports_poll_ms - now_ms) / 1000);
+    mclog::tagInfo(kTag, "sports: {} games, {} followed ({}), {} tracked, next poll in {} s", all.size(), _followed_games.size(),
+                   live ? "live" : pending ? "upcoming" : "quiet", _scores.tracked_count(), (_next_sports_poll_ms - now_ms) / 1000);
     for (const auto& e : events) onScoreEvent(e);
 }
 
@@ -730,7 +751,7 @@ void ChanApp::onScoreEvent(const ScoreEvent& e)
     if (e.ours) {
         _attention.raise(Signal::Celebrate, now, team->color, team->alt_color);
         if (horn) _attention.queue_sound(Sound::GoalHorn);
-        expressions_dance();
+        if (!isQuiet()) expressions_dance();
         _sports_screen.show_banner(e.line, team->color, team->alt_color);
     } else {
         _attention.raise(Signal::Sulk, now);
@@ -834,9 +855,9 @@ void ChanApp::handle_debug_line(std::string_view line)
         else if (a == "listening") _attention.raise(Signal::Listening, now);
         else if (a == "thinking") _attention.raise(Signal::Thinking, now);
         else if (a == "speaking") _attention.raise(Signal::Speaking, now);
-        else if (a == "agent") { _attention.raise(Signal::AgentAlert, now, 0xD97757); expressions_face_user(); }
-        else if (a == "celebrate") { _attention.raise(Signal::Celebrate, now, 0xEE7203, 0x1A1A1A); expressions_dance(); }
-        else if (a == "horn") { _attention.raise(Signal::Celebrate, now, 0x134A8E, 0xE8291C); _attention.queue_sound(Sound::GoalHorn); expressions_dance(); }
+        else if (a == "agent") { _attention.raise(Signal::AgentAlert, now, 0xD97757); if (!isQuiet()) expressions_face_user(); }
+        else if (a == "celebrate") { _attention.raise(Signal::Celebrate, now, 0xEE7203, 0x1A1A1A); if (!isQuiet()) expressions_dance(); }
+        else if (a == "horn") { _attention.raise(Signal::Celebrate, now, 0x134A8E, 0xE8291C); _attention.queue_sound(Sound::GoalHorn); if (!isQuiet()) expressions_dance(); }
         else if (a == "sulk") _attention.raise(Signal::Sulk, now);
         else if (a == "ack") _attention.acknowledge();
         else if (a == "clear") {

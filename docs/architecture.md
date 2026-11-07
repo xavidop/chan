@@ -78,7 +78,10 @@ agent session, alerts once per `needs_attention`, re-nudges once, ages rows out.
 
 `python3 scripts/chan.py ota` POSTs `build/stack-chan.bin` to `/api/ota` (bearer token; 409 while
 a voice session is open). The image goes into the inactive OTA slot, is validated, and the robot
-reboots; the bootloader rolls back if the new image never marks itself valid.
+reboots. With rollback enabled the new image is only "pending verify" until `ChanApp` confirms it —
+30 s after boot with the UI up, Wi-Fi connected and the config loaded — so a broken image that never
+gets that far is rolled back by the bootloader on the next reset. To verify an update really stuck:
+push it, wait a minute, power-cycle, and check the boot log still says the new `firmware v…`.
 
 ## Testing
 

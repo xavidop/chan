@@ -75,6 +75,17 @@ TEST_CASE("iana timezone maps to posix tz")
     CHECK(posix_tz_for("Nowhere/Unknown") == "UTC0");
 }
 
+TEST_CASE("timezone strings: IANA vs POSIX")
+{
+    CHECK(looks_like_iana("Europe/Madrid"));
+    CHECK(looks_like_iana("America/Argentina/Buenos_Aires"));
+    CHECK_FALSE(looks_like_iana("CET-1CEST,M3.5.0,M10.5.0/3"));  // POSIX with a '/' in the DST rule
+    CHECK_FALSE(looks_like_iana("UTC0"));
+    CHECK_FALSE(looks_like_iana("<+08>-8"));
+    CHECK_FALSE(looks_like_iana("JST-9"));
+    CHECK_FALSE(looks_like_iana(""));
+}
+
 TEST_CASE("weather json for the model")
 {
     Weather w{18.3, 2, true, 21.7, 12.1};

@@ -37,6 +37,8 @@ const char* condition_name(WeatherIcon icon);  // "clear", "partly cloudy", …
 
 // IANA zone → POSIX TZ string for setenv("TZ"). Unknown zones → "UTC0".
 std::string posix_tz_for(const std::string& iana);
+// "Europe/Madrid" → true; POSIX strings ("CET-1CEST,M3.5.0,M10.5.0/3", "UTC0", "<+08>-8") → false.
+bool looks_like_iana(const std::string& tz);
 
 // JSON for the get_weather tool.
 std::string weather_json(const Location& loc, const Weather& w, const std::string& units, const std::string& local_time);

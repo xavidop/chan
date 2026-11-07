@@ -158,6 +158,7 @@ static void _stackchan_update_task(void* param)
         }
 
         GetStackChan().update();
+        GetHAL().updateHeapStatusLog();  // Chan: heap stats + stock OTA confirm in companion mode too
 
         if (!hal_bridge::is_xiaozhi_ready()) {
             continue;

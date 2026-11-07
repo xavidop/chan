@@ -2,6 +2,7 @@
 
 #include <ArduinoJson.h>
 
+#include <cctype>
 #include <cstdio>
 
 namespace chan {
@@ -130,6 +131,19 @@ std::string posix_tz_for(const std::string& iana)
         if (iana == z.iana) return z.posix;
     }
     return "UTC0";
+}
+
+bool looks_like_iana(const std::string& tz)
+{
+    if (tz.empty() || tz.find(',') != std::string::npos || tz[0] == '<') return false;
+    const auto slash = tz.find('/');
+    if (slash == std::string::npos || slash == 0 || slash + 1 >= tz.size()) return false;
+    // IANA names are letters/underscores before the first '/', never a digit (POSIX "UTC0", "JST-9").
+    for (size_t i = 0; i < slash; ++i) {
+        const char c = tz[i];
+        if (!(std::isalpha(static_cast<unsigned char>(c)) || c == '_')) return false;
+    }
+    return true;
 }
 
 std::string weather_json(const Location& loc, const Weather& w, const std::string& units, const std::string& local_time)

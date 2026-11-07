@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <map>
+#include <set>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -81,9 +82,16 @@ std::string score_line(Sport sport, int points);
 
 class ScoreTracker {
 public:
-    // Feed a fresh snapshot (one or more leagues). Returns scoring events for followed teams since
-    // the previous snapshot of each game. First observation of a game never fires.
+    // Feed a fresh snapshot. `fetched_leagues` are the leagues whose fetch succeeded this round:
+    // their previously tracked games that are no longer listed are dropped (so nothing stays "live"
+    // forever and memory stays bounded); leagues not in the set keep their last snapshot.
+    // Only games involving a followed team are retained. Returns scoring events for followed teams
+    // since the previous snapshot of each game; first observation of a game never fires.
+    std::vector<ScoreEvent> update(const std::vector<Game>& games, const std::vector<Team>& followed,
+                                   const std::set<std::string>& fetched_leagues);
+    // Convenience: fetched_leagues = the leagues present in `games`.
     std::vector<ScoreEvent> update(const std::vector<Game>& games, const std::vector<Team>& followed);
+    size_t tracked_count() const { return _games.size(); }
     // Games in the current snapshots that involve a followed team (live first, then scheduled, then final).
     std::vector<Game> followed_games() const;
     // Latest final game seen per followed team key (from live polls or historical look-back).

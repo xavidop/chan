@@ -6,6 +6,7 @@ Usage:
   python3 scripts/chan.py build                 # idf.py build
   python3 scripts/chan.py flash [--port PORT]   # idf.py flash
   python3 scripts/chan.py monitor [--port PORT] # idf.py monitor
+  python3 scripts/chan.py backup-stock [--port PORT]   # read the stock firmware into backup/ (do this first)
   python3 scripts/chan.py restore-stock [--port PORT]  # write backup/stackchan-stock-16MB.bin
   python3 scripts/chan.py pack-config [--out FILE]     # .env + config.json -> chan-config.bin
   python3 scripts/chan.py flash-config [--port PORT]   # pack and write it to the `chancfg` partition
@@ -64,6 +65,17 @@ def _require_idf() -> None:
 
 def _port_args(port: str | None) -> list[str]:
     return ["-p", port] if port else []
+
+
+def write_stock_backup_sums(repo: pathlib.Path = REPO) -> pathlib.Path:
+    """Write backup/SHA256SUMS for the stock image (what `restore-stock` verifies against)."""
+    image = repo / "backup" / STOCK_IMAGE
+    if not image.is_file():
+        raise ChanError(f"{image} not found")
+    digest = hashlib.sha256(image.read_bytes()).hexdigest()
+    sums = image.with_name("SHA256SUMS")
+    sums.write_text(f"{digest}  backup/{STOCK_IMAGE}\n")
+    return sums
 
 
 def verify_stock_backup(repo: pathlib.Path = REPO) -> pathlib.Path:
@@ -200,6 +212,21 @@ def cmd_monitor(args: argparse.Namespace) -> None:
     _run(["idf.py", *_port_args(args.port), "monitor"], cwd=FIRMWARE)
 
 
+def cmd_backup_stock(args: argparse.Namespace) -> None:
+    """Read the whole 16 MB flash into backup/ and record its checksum — do this before the first flash."""
+    esptool = shutil.which("esptool") or shutil.which("esptool.py")
+    if esptool is None:
+        raise ChanError("esptool not found; activate ESP-IDF (`. ~/esp/esp-idf/export.sh`) or `pip install esptool`.")
+    image = REPO / "backup" / STOCK_IMAGE
+    if image.exists() and not args.force:
+        raise ChanError(f"{image} already exists; pass --force to overwrite it.")
+    image.parent.mkdir(parents=True, exist_ok=True)
+    print("Reading 16 MB of flash (a few minutes)…")
+    _run([esptool, *_port_args(args.port), "--baud", "921600", "read-flash", "0", "0x1000000", str(image)])
+    sums = write_stock_backup_sums()
+    print(f"Saved {image} and {sums}. `restore-stock` can now put the robot back exactly as it shipped.")
+
+
 def cmd_restore_stock(args: argparse.Namespace) -> None:
     image = verify_stock_backup()
     esptool = shutil.which("esptool") or shutil.which("esptool.py")
@@ -258,6 +285,10 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("setup", help="print ESP-IDF install/activation instructions").set_defaults(fn=cmd_setup)
     sub.add_parser("build", help="build the firmware").set_defaults(fn=cmd_build)
+    p = sub.add_parser("backup-stock", help="read the stock firmware into backup/ with a checksum (do this first)")
+    p.add_argument("--port", "-p", default=os.environ.get("CHAN_PORT"), help="serial port (or $CHAN_PORT)")
+    p.add_argument("--force", action="store_true", help="overwrite an existing backup")
+    p.set_defaults(fn=cmd_backup_stock)
     for name, fn, help_ in (
         ("flash", cmd_flash, "flash bootloader, partitions and app"),
         ("monitor", cmd_monitor, "open the serial monitor"),

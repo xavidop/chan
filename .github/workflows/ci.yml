@@ -40,7 +40,7 @@ jobs:
       - name: Python tool tests
         run: |
           python -m pip install --quiet pytest
-          python -m pytest scripts -q
+          python -m pytest scripts hooks -q
 
   firmware-build:
     name: Firmware build (ESP-IDF v6.1)

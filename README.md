@@ -41,12 +41,9 @@ cp config.example.json config.json    # name, language, teams, quiet hours…
 ```
 
 ```bash
-# back up the stock firmware first (16 MB, a few minutes) — keep it, it's your way back
-python3 -m esptool --port /dev/cu.usbmodem101 --baud 921600 read-flash 0 0x1000000 backup/stackchan-stock-16MB.bin
-```
-
-```bash
 . ~/esp/esp-idf/export.sh
+# back up the stock firmware first (16 MB, a few minutes) — it's your way back, keep it
+python3 scripts/chan.py backup-stock --port /dev/cu.usbmodem101
 (cd firmware && python3 fetch_repos.py)   # pinned upstream deps + patches
 python3 scripts/chan.py build
 python3 scripts/chan.py flash --port /dev/cu.usbmodem101

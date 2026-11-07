@@ -31,6 +31,17 @@ def test_verify_stock_backup_refuses_on_checksum_mismatch(tmp_path):
         chan.verify_stock_backup(tmp_path)
 
 
+def test_write_backup_sums_creates_checksum_file(tmp_path):
+    img = tmp_path / "backup" / "stackchan-stock-16MB.bin"
+    img.parent.mkdir()
+    img.write_bytes(b"\xab" * 32)
+    chan.write_stock_backup_sums(tmp_path)
+    sums = (tmp_path / "backup" / "SHA256SUMS").read_text()
+    assert sums.split()[0] == hashlib.sha256(b"\xab" * 32).hexdigest()
+    assert sums.split()[1].endswith("stackchan-stock-16MB.bin")
+    assert chan.verify_stock_backup(tmp_path) == img
+
+
 def test_verify_stock_backup_refuses_when_missing(tmp_path):
     with pytest.raises(chan.ChanError, match="backup"):
         chan.verify_stock_backup(tmp_path)
