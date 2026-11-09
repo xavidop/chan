@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Secrets and config must not be tracked
+        run: |
+          for f in .env config.json; do
+            if git ls-files --error-unmatch "$f" >/dev/null 2>&1; then echo "::error::$f is tracked"; exit 1; fi
+          done
+          if git ls-files backup | grep -q .; then echo "::error::backup/ is tracked"; exit 1; fi
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  host-tests:
+    name: Host tests (C++ core + Python tools)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch ArduinoJson (pinned, same as repos.json)
+        run: git clone --quiet --depth 1 --branch v7.4.2 https://github.com/bblanchon/ArduinoJson.git firmware/components/ArduinoJson
+      - name: Build and run C++ core tests
+        run: |
+          cmake -S firmware/tests -B build-host
+          cmake --build build-host
+          ctest --test-dir build-host --output-on-failure
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Python tool tests
+        run: |
+          python -m pip install --quiet pytest
+          python -m pytest scripts hooks -q
+
+  firmware-build:
+    name: Firmware build (ESP-IDF v6.1)
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:v6.1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch pinned dependencies
+        working-directory: firmware
+        run: |
+          git config --global --add safe.directory '*'
+          python3 fetch_repos.py
+      - name: Build
+        working-directory: firmware
+        shell: bash
+        run: |
+          . $IDF_PATH/export.sh
+          idf.py set-target esp32s3
+          idf.py build
+      - name: Upload firmware image
+        uses: actions/upload-artifact@v4
+        with:
+          name: chan-firmware
+          # chan.py pack-config writes the secrets partition image to build/chan-config.bin; never ship it.
+          path: |
+            firmware/build/*.bin
+            !firmware/build/chan-config.bin
+            firmware/build/bootloader/bootloader.bin
+            firmware/build/partition_table/partition-table.bin
+          if-no-files-found: error

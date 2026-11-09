@@ -1,0 +1,46 @@
+{
+ "teams": [
+  {
+   "id": 133,
+   "name": "Athletics",
+   "abbreviation": "ATH",
+   "teamName": "Athletics",
+   "locationName": "Sacramento"
+  },
+  {
+   "id": 134,
+   "name": "Pittsburgh Pirates",
+   "abbreviation": "PIT",
+   "teamName": "Pirates",
+   "locationName": "Pittsburgh"
+  },
+  {
+   "id": 135,
+   "name": "San Diego Padres",
+   "abbreviation": "SD",
+   "teamName": "Padres",
+   "locationName": "San Diego"
+  },
+  {
+   "id": 136,
+   "name": "Seattle Mariners",
+   "abbreviation": "SEA",
+   "teamName": "Mariners",
+   "locationName": "Seattle"
+  },
+  {
+   "id": 137,
+   "name": "San Francisco Giants",
+   "abbreviation": "SF",
+   "teamName": "Giants",
+   "locationName": "San Francisco"
+  },
+  {
+   "id": 141,
+   "name": "Toronto Blue Jays",
+   "abbreviation": "TOR",
+   "teamName": "Blue Jays",
+   "locationName": "Toronto"
+  }
+ ]
+}

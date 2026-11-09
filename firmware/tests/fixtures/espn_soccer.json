@@ -1,0 +1,53 @@
+{
+ "leagues": [
+  {
+   "abbreviation": "LALIGA",
+   "slug": "esp.1"
+  }
+ ],
+ "events": [
+  {
+   "id": "401882809",
+   "date": "2026-11-06T20:00Z",
+   "name": "Alav\u00e9s at Sevilla",
+   "shortName": "ALA @ SEV",
+   "status": {
+    "type": {
+     "state": "in",
+     "completed": false,
+     "shortDetail": "87'"
+    },
+    "displayClock": "87'",
+    "period": 2
+   },
+   "competitions": [
+    {
+     "competitors": [
+      {
+       "homeAway": "home",
+       "score": "0",
+       "team": {
+        "id": "243",
+        "displayName": "Sevilla",
+        "shortDisplayName": "Sevilla",
+        "abbreviation": "SEV",
+        "name": "Sevilla"
+       }
+      },
+      {
+       "homeAway": "away",
+       "score": "0",
+       "team": {
+        "id": "96",
+        "displayName": "Alav\u00e9s",
+        "shortDisplayName": "Alav\u00e9s",
+        "abbreviation": "ALA",
+        "name": "Alav\u00e9s"
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

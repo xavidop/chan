@@ -1,0 +1,175 @@
+{
+ "events": [
+  {
+   "id": "761483",
+   "date": "2026-03-08T23:00Z",
+   "name": "Toronto FC at FC Cincinnati",
+   "shortName": "TOR @ CIN",
+   "competitions": [
+    {
+     "status": {
+      "type": {
+       "state": "post",
+       "completed": true,
+       "shortDetail": "FT"
+      }
+     },
+     "competitors": [
+      {
+       "homeAway": "home",
+       "score": {
+        "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/usa.1/events/761483/competitions/761483/competitors/18267/scores/38?lang=en&region=us",
+        "value": 0.0,
+        "displayValue": "0",
+        "winner": false,
+        "source": {
+         "id": "38",
+         "description": "SA.ENVOY"
+        }
+       },
+       "team": {
+        "id": "18267",
+        "displayName": "FC Cincinnati",
+        "abbreviation": "CIN",
+        "name": null
+       }
+      },
+      {
+       "homeAway": "away",
+       "score": {
+        "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/usa.1/events/761483/competitions/761483/competitors/7318/scores/38?lang=en&region=us",
+        "value": 1.0,
+        "displayValue": "1",
+        "winner": true,
+        "source": {
+         "id": "38",
+         "description": "SA.ENVOY"
+        }
+       },
+       "team": {
+        "id": "7318",
+        "displayName": "Toronto FC",
+        "abbreviation": "TOR",
+        "name": null
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "761463",
+   "date": "2026-03-01T02:30Z",
+   "name": "Toronto FC at Vancouver Whitecaps",
+   "shortName": "TOR @ VAN",
+   "competitions": [
+    {
+     "status": {
+      "type": {
+       "state": "post",
+       "completed": true,
+       "shortDetail": "FT"
+      }
+     },
+     "competitors": [
+      {
+       "homeAway": "home",
+       "score": {
+        "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/usa.1/events/761463/competitions/761463/competitors/9727/scores/38?lang=en&region=us",
+        "value": 3.0,
+        "displayValue": "3",
+        "winner": true,
+        "source": {
+         "id": "38",
+         "description": "SA.ENVOY"
+        }
+       },
+       "team": {
+        "id": "9727",
+        "displayName": "Vancouver Whitecaps",
+        "abbreviation": "VAN",
+        "name": null
+       }
+      },
+      {
+       "homeAway": "away",
+       "score": {
+        "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/usa.1/events/761463/competitions/761463/competitors/7318/scores/38?lang=en&region=us",
+        "value": 0.0,
+        "displayValue": "0",
+        "winner": false,
+        "source": {
+         "id": "38",
+         "description": "SA.ENVOY"
+        }
+       },
+       "team": {
+        "id": "7318",
+        "displayName": "Toronto FC",
+        "abbreviation": "TOR",
+        "name": null
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "761447",
+   "date": "2026-02-22T01:30Z",
+   "name": "Toronto FC at FC Dallas",
+   "shortName": "TOR @ DAL",
+   "competitions": [
+    {
+     "status": {
+      "type": {
+       "state": "post",
+       "completed": true,
+       "shortDetail": "FT"
+      }
+     },
+     "competitors": [
+      {
+       "homeAway": "home",
+       "score": {
+        "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/usa.1/events/761447/competitions/761447/competitors/185/scores/38?lang=en&region=us",
+        "value": 3.0,
+        "displayValue": "3",
+        "winner": true,
+        "source": {
+         "id": "38",
+         "description": "SA.ENVOY"
+        }
+       },
+       "team": {
+        "id": "185",
+        "displayName": "FC Dallas",
+        "abbreviation": "DAL",
+        "name": null
+       }
+      },
+      {
+       "homeAway": "away",
+       "score": {
+        "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/usa.1/events/761447/competitions/761447/competitors/7318/scores/38?lang=en&region=us",
+        "value": 2.0,
+        "displayValue": "2",
+        "winner": false,
+        "source": {
+         "id": "38",
+         "description": "SA.ENVOY"
+        }
+       },
+       "team": {
+        "id": "7318",
+        "displayName": "Toronto FC",
+        "abbreviation": "TOR",
+        "name": null
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,139 @@
+{
+ "leagues": [
+  {
+   "abbreviation": "NHL",
+   "slug": "nhl"
+  }
+ ],
+ "events": [
+  {
+   "id": "401892659",
+   "date": "2026-11-07T00:00Z",
+   "name": "Columbus Blue Jackets at Buffalo Sabres",
+   "shortName": "CBJ @ BUF",
+   "status": {
+    "type": {
+     "state": "pre",
+     "completed": false,
+     "shortDetail": "11/6 - 7:00 PM EST"
+    },
+    "displayClock": "0:00",
+    "period": 0
+   },
+   "competitions": [
+    {
+     "competitors": [
+      {
+       "homeAway": "home",
+       "score": "0",
+       "team": {
+        "id": "2",
+        "displayName": "Buffalo Sabres",
+        "shortDisplayName": "Sabres",
+        "abbreviation": "BUF",
+        "name": "Sabres"
+       }
+      },
+      {
+       "homeAway": "away",
+       "score": "0",
+       "team": {
+        "id": "29",
+        "displayName": "Columbus Blue Jackets",
+        "shortDisplayName": "Blue Jackets",
+        "abbreviation": "CBJ",
+        "name": "Blue Jackets"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "401892660",
+   "date": "2026-11-07T01:00Z",
+   "name": "San Jose Sharks at Minnesota Wild",
+   "shortName": "SJ @ MIN",
+   "status": {
+    "type": {
+     "state": "pre",
+     "completed": false,
+     "shortDetail": "11/6 - 8:00 PM EST"
+    },
+    "displayClock": "0:00",
+    "period": 0
+   },
+   "competitions": [
+    {
+     "competitors": [
+      {
+       "homeAway": "home",
+       "score": "0",
+       "team": {
+        "id": "30",
+        "displayName": "Minnesota Wild",
+        "shortDisplayName": "Wild",
+        "abbreviation": "MIN",
+        "name": "Wild"
+       }
+      },
+      {
+       "homeAway": "away",
+       "score": "0",
+       "team": {
+        "id": "18",
+        "displayName": "San Jose Sharks",
+        "shortDisplayName": "Sharks",
+        "abbreviation": "SJ",
+        "name": "Sharks"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "401892661",
+   "date": "2026-11-07T01:00Z",
+   "name": "Anaheim Ducks at Calgary Flames",
+   "shortName": "ANA @ CGY",
+   "status": {
+    "type": {
+     "state": "pre",
+     "completed": false,
+     "shortDetail": "11/6 - 8:00 PM EST"
+    },
+    "displayClock": "0:00",
+    "period": 0
+   },
+   "competitions": [
+    {
+     "competitors": [
+      {
+       "homeAway": "home",
+       "score": "0",
+       "team": {
+        "id": "3",
+        "displayName": "Calgary Flames",
+        "shortDisplayName": "Flames",
+        "abbreviation": "CGY",
+        "name": "Flames"
+       }
+      },
+      {
+       "homeAway": "away",
+       "score": "0",
+       "team": {
+        "id": "25",
+        "displayName": "Anaheim Ducks",
+        "shortDisplayName": "Ducks",
+        "abbreviation": "ANA",
+        "name": "Ducks"
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
